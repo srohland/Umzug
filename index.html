@@ -193,20 +193,20 @@ const USERS=['Nutzer 1','Nutzer 2','Nutzer 3'];
 // ═══════════════════════════════════════════════════════
 let boxes=[], view='list', selBox=null, selItem=null;
 let scanner=null, tempBox=null, tempItem=null;
-let currentUser='Nutzer 1', gClientId='', gToken=null;
+let currentUser='Nutzer 1', scriptUrl='', lastSync=null;
 
 // ═══════════════════════════════════════════════════════
 // STORAGE
 // ═══════════════════════════════════════════════════════
 async function loadData(){
   try{const r=await window.storage.get('ub_boxes',true);if(r)boxes=JSON.parse(r.value);}catch(e){boxes=[];}
-  try{const r=await window.storage.get('ub_settings',false);if(r){const s=JSON.parse(r.value);currentUser=s.user||'Nutzer 1';gClientId=s.gClientId||'';}}catch(e){}
+  try{const r=await window.storage.get('ub_settings',false);if(r){const s=JSON.parse(r.value);currentUser=s.user||'Nutzer 1';scriptUrl=s.scriptUrl||'';lastSync=s.lastSync||null;}}catch(e){}
 }
 async function saveBoxes(){
   try{await window.storage.set('ub_boxes',JSON.stringify(boxes),true);}catch(e){toast('❌ Speicherfehler');}
 }
 async function saveSettings(){
-  try{await window.storage.set('ub_settings',JSON.stringify({user:currentUser,gClientId}),false);}catch(e){}
+  try{await window.storage.set('ub_settings',JSON.stringify({user:currentUser,scriptUrl,lastSync}),false);}catch(e){}
 }
 
 // ═══════════════════════════════════════════════════════
@@ -715,21 +715,30 @@ function renderSettings(){
       <p style="font-size:12px;color:var(--muted);font-weight:500">Exportiere und teile die Datei mit anderen Nutzern, um Daten zu synchronisieren.</p>
     </div>
 
-    <div class="sec">Google Drive Sync</div>
+    <div class="sec">☁️ Google Drive Sync</div>
     <div class="card">
       <div class="fg">
-        <label>Google OAuth Client-ID</label>
-        <input type="text" id="gcid" value="${esc(gClientId)}" placeholder="…apps.googleusercontent.com" oninput="gClientId=this.value">
+        <label>Apps Script URL</label>
+        <input type="url" id="surl" value="${esc(scriptUrl)}" placeholder="https://script.google.com/macros/s/…/exec"
+          oninput="scriptUrl=this.value" style="font-size:13px">
       </div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;font-weight:500;line-height:1.5">
-        Erstelle ein Projekt in der <a href="https://console.cloud.google.com" target="_blank" style="color:var(--primary)">Google Cloud Console</a>, aktiviere die Drive API und erstelle OAuth-Anmeldedaten.<br>
-        Autorisierte Herkunft: <code style="font-family:'DM Mono',monospace;background:var(--bg);padding:1px 5px;border-radius:4px">${location.origin}</code>
-      </p>
+      ${lastSync?`<div style="font-size:12px;color:var(--muted);font-weight:500;margin-bottom:12px">Letzter Sync: ${new Date(lastSync).toLocaleString('de-DE')}</div>`:''}
       <div style="display:flex;gap:8px">
-        <button class="btn btn-s" style="flex:1" onclick="saveGCID()">Speichern</button>
-        <button class="btn btn-p" style="flex:1" onclick="driveSync()">☁️ Sync</button>
+        <button class="btn btn-s" style="flex:1" onclick="saveScriptUrl()">💾 Speichern</button>
+        <button class="btn btn-p" style="flex:1" onclick="driveSync()" ${!scriptUrl?'disabled':''}>🔄 Jetzt sync</button>
       </div>
-      ${gToken?`<div style="margin-top:10px;color:var(--success);font-size:13px;font-weight:700">✅ Mit Google Drive verbunden</div>`:''}
+      <details style="margin-top:14px">
+        <summary style="font-size:13px;font-weight:700;cursor:pointer;color:var(--primary)">📋 Einrichtung anzeigen</summary>
+        <div style="margin-top:12px;font-size:13px;color:var(--ink2);line-height:1.7">
+          <b>Einmalig einrichten (5 Minuten):</b><br>
+          1. <a href="https://script.google.com" target="_blank" style="color:var(--primary)">script.google.com</a> öffnen<br>
+          2. „Neues Projekt" klicken<br>
+          3. Gesamten Code aus der <code style="background:var(--bg);padding:1px 5px;border-radius:4px">umzugsbox-script.gs</code> Datei einfügen<br>
+          4. Oben auf „Bereitstellen" → „Neue Bereitstellung"<br>
+          5. Typ: <b>Web-App</b> · Ausführen als: <b>Ich</b> · Zugriff: <b>Jeder</b><br>
+          6. „Bereitstellen" → URL kopieren → hier einfügen
+        </div>
+      </details>
     </div>
 
     <div class="sec">Farbcode-Legende</div>
@@ -771,7 +780,46 @@ function importJSON(input){
     }catch(err){toast('❌ Importfehler: '+err.message);}
   };fr.readAsText(file);
 }
-async function saveGCID(){await saveSettings();toast('✅ Client-ID gespeichert');}
+async function saveGCID(){await saveSettings();toast('✅ URL gespeichert');}
+async function saveScriptUrl(){await saveSettings();toast('✅ URL gespeichert');render();}
+
+// ═══════════════════════════════════════════════════════
+// APPS SCRIPT SYNC
+// ═══════════════════════════════════════════════════════
+async function driveSync(){
+  if(!scriptUrl.trim()){toast('❌ Bitte Script-URL eingeben');return;}
+  toast('⏳ Synchronisiere…',8000);
+  try{
+    // POST: send all local boxes, receive merged result
+    const resp=await fetch(scriptUrl,{
+      method:'POST',
+      body:JSON.stringify({boxes,user:currentUser})
+    });
+    if(!resp.ok)throw new Error('HTTP '+resp.status);
+    const data=await resp.json();
+    if(!data.ok)throw new Error(data.error||'Unbekannter Fehler');
+
+    // Merge: server is source of truth, but keep local boxes that are newer
+    const merged=data.boxes.map(serverBox=>{
+      const local=boxes.find(b=>b.id===serverBox.id);
+      if(!local)return serverBox;
+      const localDate=new Date(local.updatedAt||0);
+      const serverDate=new Date(serverBox.updatedAt||0);
+      return localDate>serverDate?local:serverBox;
+    });
+    // Add any local boxes not yet on server
+    boxes.forEach(lb=>{if(!merged.find(b=>b.id===lb.id))merged.push(lb);});
+
+    boxes=merged;
+    lastSync=new Date().toISOString();
+    await saveBoxes();
+    await saveSettings();
+    toast(`✅ Sync erfolgreich – ${boxes.length} Kartons`);
+    render();
+  }catch(e){
+    toast('❌ Sync fehlgeschlagen: '+e.message);
+  }
+}
 
 function printLegend(){
   const w=window.open('','_blank');
@@ -785,54 +833,6 @@ function printLegend(){
     ${COLORS.map(c=>`<div class="item"><div class="dot" style="background:${c.hex}"></div><div class="name">${c.name}</div></div>`).join('')}
     </body></html>`);
   w.document.close();setTimeout(()=>w.print(),300);
-}
-
-// ═══════════════════════════════════════════════════════
-// GOOGLE DRIVE
-// ═══════════════════════════════════════════════════════
-async function loadGIS(){
-  if(window.google?.accounts?.oauth2)return;
-  return new Promise((res,rej)=>{
-    const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';
-    s.onload=res;s.onerror=()=>rej(new Error('Google-Dienste nicht verfügbar'));
-    document.head.appendChild(s);
-  });
-}
-async function driveSync(){
-  if(!gClientId.trim()){toast('❌ Bitte Client-ID eingeben und speichern');return;}
-  try{
-    await loadGIS();
-    if(!gToken){
-      await new Promise((res,rej)=>{
-        const client=google.accounts.oauth2.initTokenClient({
-          client_id:gClientId,scope:'https://www.googleapis.com/auth/drive.file',
-          callback:resp=>{if(resp.error){toast('❌ Anmeldung fehlgeschlagen');rej(resp.error);return;}
-            gToken=resp.access_token;res();}
-        });client.requestAccessToken();
-      });
-    }
-    await uploadToDrive();
-    render();
-  }catch(e){toast('❌ '+e.message);gToken=null;}
-}
-async function uploadToDrive(){
-  const data=JSON.stringify({version:2,exported:new Date().toISOString(),boxes});
-  const headers={'Authorization':'Bearer '+gToken};
-  // search for existing file
-  const s=await fetch(`https://www.googleapis.com/drive/v3/files?q=name='umzugsbox-data.json'%20and%20trashed%3Dfalse&spaces=drive`,{headers});
-  const sd=await s.json();
-  const existing=sd.files?.[0];
-  const meta={name:'umzugsbox-data.json',mimeType:'application/json'};
-  const form=new FormData();
-  form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));
-  form.append('file',new Blob([data],{type:'application/json'}));
-  const url=existing
-    ?`https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=multipart`
-    :`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
-  const method=existing?'PATCH':'POST';
-  const r=await fetch(url,{method,headers,body:form});
-  if(r.ok)toast('✅ Google Drive sync erfolgreich');
-  else{toast('❌ Sync fehlgeschlagen');gToken=null;}
 }
 
 // ═══════════════════════════════════════════════════════
