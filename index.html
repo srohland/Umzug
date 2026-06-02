@@ -125,6 +125,33 @@ textarea{resize:none;min-height:80px}
 .legend-item{display:flex;align-items:center;gap:8px;padding:8px 10px;
   background:var(--bg);border-radius:9px}
 .legend-dot{width:18px;height:18px;border-radius:5px;border:1.5px solid rgba(0,0,0,.08);flex-shrink:0}
+/* ── Photos ── */
+.photo-thumb{width:56px;height:56px;border-radius:9px;object-fit:cover;cursor:pointer;
+  border:2px solid var(--border);flex-shrink:0;transition:transform .15s}
+.photo-thumb:active{transform:scale(.95)}
+.photo-placeholder{width:56px;height:56px;border-radius:9px;border:2px dashed var(--border);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:22px;
+  flex-shrink:0;background:var(--bg);color:var(--muted);transition:border-color .2s}
+.photo-placeholder:active{border-color:var(--primary)}
+.box-photo-wrap{width:100%;height:160px;border-radius:11px;overflow:hidden;
+  margin-bottom:14px;cursor:pointer;position:relative;background:var(--bg)}
+.box-photo-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+.box-photo-add{width:100%;height:120px;border-radius:11px;border:2px dashed var(--border);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:6px;cursor:pointer;background:var(--bg);color:var(--muted);margin-bottom:14px;
+  font-size:13px;font-weight:600;transition:border-color .2s}
+.box-photo-add:active{border-color:var(--primary)}
+/* ── Photo Modal ── */
+#photo-modal{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:500;
+  display:none;flex-direction:column;align-items:center;justify-content:center}
+#photo-modal.open{display:flex}
+#photo-modal img{max-width:100%;max-height:80vh;border-radius:12px;object-fit:contain}
+#photo-modal-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);
+  border:none;color:#fff;font-size:28px;width:44px;height:44px;border-radius:50%;
+  cursor:pointer;display:flex;align-items:center;justify-content:center}
+#photo-modal-del{position:absolute;bottom:32px;background:rgba(239,68,68,.8);
+  border:none;color:#fff;font-size:14px;font-weight:700;padding:10px 24px;
+  border-radius:20px;cursor:pointer}
 @media print{#nav,#hdr,.no-print{display:none!important}#content{padding:0!important}.scroll-area{padding:20px!important}}
 </style>
 </head>
@@ -165,6 +192,14 @@ textarea{resize:none;min-height:80px}
   </nav>
 </div>
 <div id="toast"></div>
+<div id="photo-modal">
+  <button id="photo-modal-close" onclick="closePhotoModal()">✕</button>
+  <img id="photo-modal-img" src="" alt="">
+  <div style="position:absolute;bottom:32px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+    <button id="photo-modal-drive" onclick="loadModalFromDrive()" style="display:none;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:14px;font-weight:700;padding:10px 20px;border-radius:20px;cursor:pointer">☁️ Vollbild aus Drive laden</button>
+    <button id="photo-modal-del" onclick="deleteModalPhoto()" style="display:none;background:rgba(239,68,68,.8);border:none;color:#fff;font-size:14px;font-weight:700;padding:10px 20px;border-radius:20px;cursor:pointer">🗑️ Foto löschen</button>
+  </div>
+</div>
 <script>
 // ═══════════════════════════════════════════════════════
 // CONSTANTS
@@ -194,19 +229,24 @@ const USERS=['Nutzer 1','Nutzer 2','Nutzer 3'];
 let boxes=[], view='list', selBox=null, selItem=null;
 let scanner=null, tempBox=null, tempItem=null;
 let currentUser='Nutzer 1', scriptUrl='', lastSync=null;
+let gClientId='', gToken=null, rootFolderId=null;
 
 // ═══════════════════════════════════════════════════════
 // STORAGE
 // ═══════════════════════════════════════════════════════
 async function loadData(){
   try{const r=await window.storage.get('ub_boxes',true);if(r)boxes=JSON.parse(r.value);}catch(e){boxes=[];}
-  try{const r=await window.storage.get('ub_settings',false);if(r){const s=JSON.parse(r.value);currentUser=s.user||'Nutzer 1';scriptUrl=s.scriptUrl||'';lastSync=s.lastSync||null;}}catch(e){}
+  try{const r=await window.storage.get('ub_settings',false);if(r){
+    const s=JSON.parse(r.value);
+    currentUser=s.user||'Nutzer 1';scriptUrl=s.scriptUrl||'';
+    lastSync=s.lastSync||null;gClientId=s.gClientId||'';rootFolderId=s.rootFolderId||null;
+  }}catch(e){}
 }
 async function saveBoxes(){
   try{await window.storage.set('ub_boxes',JSON.stringify(boxes),true);}catch(e){toast('❌ Speicherfehler');}
 }
 async function saveSettings(){
-  try{await window.storage.set('ub_settings',JSON.stringify({user:currentUser,scriptUrl,lastSync}),false);}catch(e){}
+  try{await window.storage.set('ub_settings',JSON.stringify({user:currentUser,scriptUrl,lastSync,gClientId,rootFolderId}),false);}catch(e){}
 }
 
 // ═══════════════════════════════════════════════════════
@@ -253,8 +293,220 @@ function showQR(containerId,text){
 }
 
 // ═══════════════════════════════════════════════════════
-// MAIN RENDER
+// PHOTO HELPERS
 // ═══════════════════════════════════════════════════════
+function compressImage(file, maxPx, quality){
+  return new Promise(resolve=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const ratio=Math.min(maxPx/img.width, maxPx/img.height, 1);
+        const c=document.createElement('canvas');
+        c.width=Math.round(img.width*ratio);
+        c.height=Math.round(img.height*ratio);
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        resolve(c.toDataURL('image/jpeg',quality));
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+async function saveFullPhoto(id, dataUrl){
+  try{await window.storage.set('ub_photo_'+id, dataUrl, false);}catch(e){}
+}
+async function loadFullPhoto(id){
+  try{const r=await window.storage.get('ub_photo_'+id,false);return r?r.value:null;}catch(e){return null;}
+}
+async function deleteFullPhoto(id){
+  try{await window.storage.delete('ub_photo_'+id,false);}catch(e){}
+}
+
+// Photo input handler — used by both box and item forms
+async function handlePhotoInput(file, targetId, isItem){
+  if(!file)return;
+  toast('⏳ Foto wird verarbeitet…',4000);
+  try{
+    const full=await compressImage(file,800,0.75);
+    const thumb=await compressImage(file,120,0.65);
+    await saveFullPhoto(targetId, full);
+    if(isItem){if(tempItem)tempItem.thumbnail=thumb;}
+    else{if(tempBox)tempBox.thumbnail=thumb;}
+    const prev=document.getElementById('photo-preview-'+targetId);
+    if(prev){prev.src=thumb;prev.style.display='block';}
+    const ph=document.getElementById('photo-placeholder-'+targetId);
+    if(ph)ph.style.display='none';
+    toast('✅ Foto lokal gespeichert');
+    // Drive upload in background
+    pushPhotoToDrive(full, targetId, isItem);
+  }catch(e){toast('❌ Foto-Fehler: '+e.message);}
+}
+
+let modalPhotoId=null, modalIsItem=false, modalDriveId=null;
+async function openPhotoModal(id, thumb, isItem, driveId){
+  modalPhotoId=id; modalIsItem=isItem; modalDriveId=driveId||null;
+  const modal=document.getElementById('photo-modal');
+  const img=document.getElementById('photo-modal-img');
+  const driveBtn=document.getElementById('photo-modal-drive');
+  const del=document.getElementById('photo-modal-del');
+  img.src=thumb;
+  modal.classList.add('open');
+  del.style.display='block';
+  driveBtn.style.display='none';
+  // 1. Try local cache
+  const local=await loadFullPhoto(id);
+  if(local){img.src=local;return;}
+  // 2. Have Drive ID?
+  if(driveId){
+    if(gToken){
+      await loadModalFromDrive();
+    } else {
+      driveBtn.style.display='block'; // show "load from Drive" button
+    }
+  }
+}
+async function loadModalFromDrive(){
+  const driveBtn=document.getElementById('photo-modal-drive');
+  if(driveBtn)driveBtn.style.display='none';
+  try{
+    if(!await ensureGToken())return;
+    toast('⏳ Lade von Drive…',5000);
+    const full=await downloadFromDrive(modalDriveId);
+    await saveFullPhoto(modalPhotoId,full);
+    const img=document.getElementById('photo-modal-img');
+    if(img)img.src=full;
+    toast('✅ Vollbild geladen & lokal gecacht');
+  }catch(e){toast('⚠️ Drive: '+e.message);}
+}
+function closePhotoModal(){
+  document.getElementById('photo-modal').classList.remove('open');
+  document.getElementById('photo-modal-img').src='';
+}
+async function deleteModalPhoto(){
+  if(!confirm('Foto löschen?'))return;
+  await deleteFullPhoto(modalPhotoId);
+  if(modalIsItem){
+    const box=getBox(selBox);
+    const item=box?.items?.find(i=>i.id===modalPhotoId);
+    if(item){delete item.thumbnail;await saveBoxes();}
+  } else {
+    const box=getBox(modalPhotoId);
+    if(box){delete box.thumbnail;await saveBoxes();}
+  }
+  closePhotoModal();
+  toast('🗑️ Foto gelöscht');
+  render();
+}
+
+// ═══════════════════════════════════════════════════════
+// GOOGLE DRIVE
+// ═══════════════════════════════════════════════════════
+async function loadGIS(){
+  if(window.google?.accounts?.oauth2)return;
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://accounts.google.com/gsi/client';
+    s.onload=res;s.onerror=()=>rej(new Error('Google nicht erreichbar'));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureGToken(){
+  if(gToken)return true;
+  if(!gClientId){toast('❌ Bitte Google Client-ID in Einstellungen eingeben');return false;}
+  try{
+    await loadGIS();
+    return new Promise(resolve=>{
+      const client=google.accounts.oauth2.initTokenClient({
+        client_id:gClientId,
+        scope:'https://www.googleapis.com/auth/drive.file',
+        callback:resp=>{
+          if(resp.error){toast('❌ Google-Anmeldung fehlgeschlagen');resolve(false);return;}
+          gToken=resp.access_token;
+          toast('✅ Mit Google Drive verbunden');
+          resolve(true);
+        }
+      });
+      client.requestAccessToken();
+    });
+  }catch(e){toast('❌ '+e.message);return false;}
+}
+
+async function driveGet(path){
+  const r=await fetch('https://www.googleapis.com/'+path,
+    {headers:{Authorization:'Bearer '+gToken}});
+  if(r.status===401){gToken=null;throw new Error('Token abgelaufen, bitte neu anmelden');}
+  return r.json();
+}
+
+async function getOrCreateFolder(name,parentId){
+  const pq=parentId?` and '${parentId}' in parents`:` and 'root' in parents`;
+  const q=encodeURIComponent(`name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false${pq}`);
+  const data=await driveGet(`drive/v3/files?q=${q}&fields=files(id)`);
+  if(data.files?.length)return data.files[0].id;
+  const meta={name,mimeType:'application/vnd.google-apps.folder'};
+  if(parentId)meta.parents=[parentId];
+  const r=await fetch('https://www.googleapis.com/drive/v3/files',{
+    method:'POST',headers:{Authorization:'Bearer '+gToken,'Content-Type':'application/json'},
+    body:JSON.stringify(meta)});
+  const f=await r.json();return f.id;
+}
+
+async function ensureRootFolder(){
+  if(rootFolderId)return rootFolderId;
+  rootFolderId=await getOrCreateFolder('UmzugsBox',null);
+  await saveSettings();return rootFolderId;
+}
+
+async function getBoxFolder(box){
+  if(box.driveFolderId)return box.driveFolderId;
+  const root=await ensureRootFolder();
+  const name=`${box.name} [${box.id}]`;
+  const id=await getOrCreateFolder(name,root);
+  box.driveFolderId=id;await saveBoxes();return id;
+}
+
+async function uploadToDrive(dataUrl,filename,folderId){
+  const blob=await(await fetch(dataUrl)).blob();
+  const meta={name:filename,parents:[folderId]};
+  const form=new FormData();
+  form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));
+  form.append('file',blob);
+  const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {method:'POST',headers:{Authorization:'Bearer '+gToken},body:form});
+  if(!r.ok)throw new Error('Upload fehlgeschlagen: '+r.status);
+  const d=await r.json();return d.id;
+}
+
+async function downloadFromDrive(fileId){
+  const r=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+    {headers:{Authorization:'Bearer '+gToken}});
+  if(!r.ok)throw new Error('Download fehlgeschlagen');
+  const blob=await r.blob();
+  return new Promise(res=>{const fr=new FileReader();fr.onload=e=>res(e.target.result);fr.readAsDataURL(blob);});
+}
+
+async function pushPhotoToDrive(fullDataUrl, targetId, isItem){
+  try{
+    if(!await ensureGToken())return;
+    const box=isItem?getBox(selBox):getBox(targetId);
+    if(!box)return;
+    const folderId=await getBoxFolder(box);
+    const filename=isItem?`${targetId}.jpg`:'karton.jpg';
+    const driveId=await uploadToDrive(fullDataUrl,filename,folderId);
+    if(isItem){
+      const item=box.items?.find(i=>i.id===targetId);
+      if(item){item.drivePhotoId=driveId;await saveBoxes();}
+      if(tempItem&&tempItem.id===targetId)tempItem.drivePhotoId=driveId;
+    } else {
+      box.drivePhotoId=driveId;await saveBoxes();
+      if(tempBox&&tempBox.id===targetId)tempBox.drivePhotoId=driveId;
+    }
+    toast('☁️ Foto in Drive hochgeladen');
+  }catch(e){toast('⚠️ Drive-Upload: '+e.message);}
+}
+
 function render(){
   const back=document.getElementById('back-btn');
   const title=document.getElementById('hdr-title');
@@ -334,6 +586,12 @@ function renderDetail(){
     <!-- Info card -->
     <div class="card">
       <div class="dcb" style="background:${col.hex}"></div>
+      ${box.thumbnail
+        ?`<div class="box-photo-wrap no-print" onclick="openPhotoModal('${box.id}','${box.thumbnail}',false,'${box.drivePhotoId||''}')">
+            <img src="${box.thumbnail}" alt="Karton Foto">
+            <div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px">${box.drivePhotoId?'☁️ Tippen für Vollbild':'Tippen zum Vergrößern'}</div>
+          </div>`
+        :''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
         <span class="chip" style="background:${col.hex};color:${textColor}">${col.emoji} ${col.name}</span>
       </div>
@@ -358,6 +616,13 @@ function renderDetail(){
       </div>
       ${items.length===0?'<div style="text-align:center;padding:24px 0;color:var(--muted);font-size:14px;font-weight:500">Noch keine Gegenstände erfasst</div>':
         items.map(it=>`<div class="item-row">
+          ${it.thumbnail
+            ?`<img class="photo-thumb" src="${it.thumbnail}" onclick="openPhotoModal('${it.id}','${it.thumbnail}',true,'${it.drivePhotoId||''}')">`
+            :`<div class="photo-placeholder no-print" title="Foto hinzufügen"
+                onclick="document.getElementById('photo-item-quick-${it.id}').click()">📷
+                <input type="file" id="photo-item-quick-${it.id}" accept="image/*" capture="environment" style="display:none"
+                  onchange="quickItemPhoto(this,'${box.id}','${it.id}')">
+              </div>`}
           <div class="item-body">
             <div class="item-name">${esc(it.name)}</div>
             ${it.notes?`<div class="item-note">${esc(it.notes)}</div>`:''}
@@ -402,6 +667,23 @@ function renderBoxForm(isNew){
   const selCol=getColor(tempBox.color);
   document.getElementById('content').innerHTML=`<div class="scroll-area">
     <div class="fg">
+      <label>Foto des Kartons</label>
+      ${tempBox.thumbnail
+        ?`<div style="position:relative;margin-bottom:4px">
+            <img id="photo-preview-${tempBox.id}" src="${tempBox.thumbnail}"
+              style="width:100%;height:140px;object-fit:cover;border-radius:11px;border:1.5px solid var(--border)">
+            <button onclick="removeBoxPhoto()" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);
+              border:none;color:#fff;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer">✕ Entfernen</button>
+          </div>`
+        :`<label class="box-photo-add" for="box-photo-inp">
+            <span style="font-size:32px">📷</span>
+            <span>Foto aufnehmen oder auswählen</span>
+          </label>`}
+      <input type="file" id="box-photo-inp" accept="image/*" capture="environment" style="display:none"
+        onchange="handlePhotoInput(this.files[0],'${tempBox.id}',false)">
+      ${!tempBox.thumbnail?'':`<button class="btn btn-s btn-sm" onclick="document.getElementById('box-photo-inp').click()" style="margin-top:6px">📷 Foto ändern</button>`}
+    </div>
+    <div class="fg">
       <label>Name / Bezeichnung</label>
       <input type="text" id="bn" value="${esc(tempBox.name)}" placeholder="z.B. Küche 1, Bücher Regal…" oninput="tempBox.name=this.value">
     </div>
@@ -438,6 +720,26 @@ function pickColor(id,el){
   const col=getColor(id);
   document.getElementById('col-label').innerHTML=`Ausgewählt: <strong>${col.emoji} ${col.name}</strong>`;
 }
+function removeBoxPhoto(){
+  if(tempBox){tempBox.thumbnail=null;}
+  render();
+}
+async function quickItemPhoto(input, boxId, itemId){
+  const file=input.files[0]; if(!file)return;
+  toast('⏳ Foto wird verarbeitet…',4000);
+  try{
+    const full=await compressImage(file,800,0.75);
+    const thumb=await compressImage(file,120,0.65);
+    await saveFullPhoto(itemId, full);
+    const box=getBox(boxId);
+    const item=box?.items?.find(i=>i.id===itemId);
+    if(item){item.thumbnail=thumb;await saveBoxes();}
+    toast('✅ Foto lokal gespeichert');
+    render();
+    // Drive upload in background
+    pushPhotoToDrive(full, itemId, true);
+  }catch(e){toast('❌ '+e.message);}
+}
 async function saveBox(isNew){
   if(!tempBox.name.trim()){toast('❌ Bitte einen Namen eingeben');return;}
   tempBox.lastEditor=currentUser;
@@ -466,6 +768,21 @@ function renderItemForm(isNew){
   document.getElementById('hdr-actions').innerHTML='';
   document.getElementById('content').innerHTML=`<div class="scroll-area">
     <div style="font-size:12px;color:var(--muted);font-weight:600;margin-bottom:14px">Karton: ${esc(box?.name)}</div>
+    <div class="fg">
+      <label>Foto des Gegenstands</label>
+      ${tempItem.thumbnail
+        ?`<div style="position:relative;margin-bottom:4px">
+            <img src="${tempItem.thumbnail}" style="width:100%;height:120px;object-fit:cover;border-radius:11px;border:1.5px solid var(--border)">
+            <button onclick="tempItem.thumbnail=null;render()" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.6);
+              border:none;color:#fff;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer">✕ Entfernen</button>
+          </div>`
+        :`<label class="box-photo-add" for="item-photo-inp" style="height:90px">
+            <span style="font-size:28px">📷</span>
+            <span>Foto aufnehmen oder auswählen</span>
+          </label>`}
+      <input type="file" id="item-photo-inp" accept="image/*" capture="environment" style="display:none"
+        onchange="handlePhotoInput(this.files[0],'${tempItem.id}',true)">
+    </div>
     <div class="fg">
       <label>Bezeichnung</label>
       <input type="text" id="iname" value="${esc(tempItem.name)}" placeholder="z.B. Töpfe, Bücher, Kissen…" oninput="tempItem.name=this.value">
@@ -715,7 +1032,25 @@ function renderSettings(){
       <p style="font-size:12px;color:var(--muted);font-weight:500">Exportiere und teile die Datei mit anderen Nutzern, um Daten zu synchronisieren.</p>
     </div>
 
-    <div class="sec">☁️ Google Drive Sync</div>
+    <div class="sec">📸 Google Drive (Fotos)</div>
+    <div class="card">
+      <div class="fg">
+        <label>Google OAuth Client-ID</label>
+        <input type="text" id="gcid" value="${esc(gClientId)}" placeholder="….apps.googleusercontent.com"
+          oninput="gClientId=this.value" style="font-size:13px">
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="btn btn-s" style="flex:1" onclick="gClientId=document.getElementById('gcid').value;saveSettings();toast('✅ Gespeichert')">💾 Speichern</button>
+        <button class="btn btn-p" style="flex:1" onclick="ensureGToken().then(ok=>ok&&render())">${gToken?'✅ Verbunden':'🔑 Anmelden'}</button>
+      </div>
+      <p style="font-size:12px;color:var(--muted);font-weight:500;line-height:1.6">
+        Fotos werden automatisch nach <code style="background:var(--bg);padding:1px 5px;border-radius:4px">UmzugsBox/{Karton}/{item}.jpg</code> hochgeladen.<br>
+        Andere Nutzer sehen das Thumbnail sofort nach dem Sync. Vollbild wird bei Bedarf aus Drive geladen und lokal gecacht.<br><br>
+        Setup: <a href="https://console.cloud.google.com" target="_blank" style="color:var(--primary)">Google Cloud Console</a> → Projekt → Drive API aktivieren → OAuth Client-ID erstellen (Webanwendung) → Herkunft <code style="background:var(--bg);padding:1px 5px;border-radius:4px">${location.origin}</code> hinzufügen.
+      </p>
+    </div>
+
+    <div class="sec">☁️ Metadaten-Sync (Apps Script)</div>
     <div class="card">
       <div class="fg">
         <label>Apps Script URL</label>
