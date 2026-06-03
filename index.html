@@ -162,6 +162,7 @@ textarea{resize:none;min-height:80px}
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
     </button>
     <h1 id="hdr-title">📦 UmzugsBox</h1>
+    <div id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#22c55e;opacity:0;transition:opacity .3s;flex-shrink:0" title="Synchronisiert…"></div>
     <div id="hdr-actions"></div>
   </div>
   <div id="content"><div class="scroll-area" style="display:flex;align-items:center;justify-content:center;min-height:60vh"><div style="color:var(--muted);font-size:15px">Lade…</div></div></div>
@@ -274,6 +275,7 @@ async function loadData(){
 }
 async function saveBoxes(){
   try{await store.set('ub_boxes',JSON.stringify(boxes),true);}catch(e){toast('❌ Speicherfehler');}
+  scheduleSync();
 }
 async function saveSettings(){
   try{await store.set('ub_settings',JSON.stringify({user:currentUser,scriptUrl,lastSync,gClientId,rootFolderId}),false);}catch(e){}
@@ -1156,11 +1158,15 @@ async function saveScriptUrl(){await saveSettings();toast('✅ URL gespeichert')
 // ═══════════════════════════════════════════════════════
 // APPS SCRIPT SYNC
 // ═══════════════════════════════════════════════════════
-async function driveSync(){
-  if(!scriptUrl.trim()){toast('❌ Bitte Script-URL eingeben');return;}
-  toast('⏳ Synchronisiere…',8000);
+let isSyncing=false, syncDebounceTimer=null;
+
+async function driveSync(silent=false){
+  if(!scriptUrl.trim()){if(!silent)toast('❌ Bitte Script-URL eingeben');return;}
+  if(isSyncing)return;
+  isSyncing=true;
+  setSyncIndicator(true);
+  if(!silent)toast('⏳ Synchronisiere…',8000);
   try{
-    // POST: send all local boxes, receive merged result
     const resp=await fetch(scriptUrl,{
       method:'POST',
       body:JSON.stringify({boxes,user:currentUser})
@@ -1169,7 +1175,7 @@ async function driveSync(){
     const data=await resp.json();
     if(!data.ok)throw new Error(data.error||'Unbekannter Fehler');
 
-    // Merge: server is source of truth, but keep local boxes that are newer
+    const prevCount=boxes.length;
     const merged=data.boxes.map(serverBox=>{
       const local=boxes.find(b=>b.id===serverBox.id);
       if(!local)return serverBox;
@@ -1177,18 +1183,33 @@ async function driveSync(){
       const serverDate=new Date(serverBox.updatedAt||0);
       return localDate>serverDate?local:serverBox;
     });
-    // Add any local boxes not yet on server
     boxes.forEach(lb=>{if(!merged.find(b=>b.id===lb.id))merged.push(lb);});
-
     boxes=merged;
     lastSync=new Date().toISOString();
     await saveBoxes();
     await saveSettings();
-    toast(`✅ Sync erfolgreich – ${boxes.length} Kartons`);
+    const newBoxes=boxes.length-prevCount;
+    if(!silent)toast(`✅ Sync – ${boxes.length} Kartons`);
+    else if(newBoxes>0)toast(`🔄 ${newBoxes} neue Karton${newBoxes!==1?'s':''} synchronisiert`);
     render();
   }catch(e){
-    toast('❌ Sync fehlgeschlagen: '+e.message);
+    if(!silent)toast('❌ Sync fehlgeschlagen: '+e.message);
+  }finally{
+    isSyncing=false;
+    setSyncIndicator(false);
   }
+}
+
+function setSyncIndicator(active){
+  const el=document.getElementById('sync-dot');
+  if(el)el.style.opacity=active?'1':'0';
+}
+
+// Debounced auto-sync after changes (2s delay)
+function scheduleSync(){
+  if(!scriptUrl)return;
+  clearTimeout(syncDebounceTimer);
+  syncDebounceTimer=setTimeout(()=>driveSync(true),2000);
 }
 
 function printLegend(){
@@ -1208,7 +1229,13 @@ function printLegend(){
 // ═══════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════
-loadData().then(()=>render());
+loadData().then(()=>{
+  render();
+  // Sync on startup
+  if(scriptUrl) driveSync(true);
+  // Sync every 5 minutes
+  setInterval(()=>{if(scriptUrl)driveSync(true);}, 5*60*1000);
+});
 </script>
 </body>
 </html>
