@@ -1,6 +1,6 @@
 import { state } from '../state.js';
 import { esc, activeBoxes, getRooms, sanitizeBox, toast } from '../helpers.js';
-import { COLORS, ROOMS, USERS } from '../constants.js';
+import { COLORS, ROOMS } from '../constants.js';
 import { saveSettings, saveBoxes } from '../storage.js';
 import { driveSync } from '../sync.js';
 import { ensureGToken } from '../drive.js';
@@ -44,7 +44,6 @@ export function renderSettings() {
   const boxes = activeBoxes();
   const bc = boxes.length;
   const ic = boxes.reduce((s, b) => s + (b.items?.length || 0), 0);
-  const uOpts = USERS.map(u => `<option${state.currentUser === u ? ' selected' : ''}>${u}</option>`).join('');
   document.getElementById('content').innerHTML = `<div class="scroll-area">
     ${installSection()}
 
@@ -52,7 +51,8 @@ export function renderSettings() {
     <div class="card">
       <div class="fg" style="margin-bottom:10px">
         <label>Ich bin</label>
-        <select onchange="setCurrentUser(this.value)">${uOpts}</select>
+        <input type="text" value="${esc(state.currentUser)}" placeholder="Dein Name…"
+          onchange="setCurrentUser(this.value)">
       </div>
       <p style="font-size:13px;color:var(--muted);font-weight:500">Wird bei Bearbeitungen vermerkt.</p>
     </div>
@@ -119,22 +119,21 @@ export function renderSettings() {
       </details>
     </div>
 
-    <div class="sec">Farbbezeichnungen</div>
+    <div class="sec">Farbauswahl</div>
     <div class="card">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;font-weight:500">Benenne Farben nach Zimmern oder Bereichen im Zielort – z.B. „Rot → Schlafzimmer Eltern".</p>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
-        ${COLORS.map(c => `<div style="display:flex;align-items:center;gap:10px">
-          <div style="width:22px;height:22px;border-radius:5px;background:${c.hex};flex-shrink:0;border:1px solid rgba(0,0,0,.12)"></div>
-          <span style="font-size:17px;flex-shrink:0">${c.emoji}</span>
-          <input type="text" value="${esc(state.customColorNames?.[c.id] || c.name)}"
-            style="flex:1;font-size:14px;font-weight:600;min-width:0"
-            onchange="setColorName('${c.id}',this.value)">
-        </div>`).join('')}
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;font-weight:500">Welche Farben sollen bei der Karton-Erstellung zur Verfügung stehen?</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+        ${COLORS.map(c => {
+          const enabled = !state.disabledColorIds.includes(c.id);
+          return `<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 4px;border-radius:8px">
+            <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleColor('${c.id}',this.checked)"
+              style="width:18px;height:18px;accent-color:${c.hex};cursor:pointer;flex-shrink:0">
+            <div style="width:20px;height:20px;border-radius:5px;background:${c.hex};flex-shrink:0;border:1px solid rgba(0,0,0,.12)"></div>
+            <span style="font-size:14px;font-weight:600">${c.name}</span>
+          </label>`;
+        }).join('')}
       </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-s btn-w no-print" onclick="printLegend()" style="flex:1">🖨️ Legende drucken</button>
-        ${Object.keys(state.customColorNames || {}).length ? `<button class="btn btn-s" onclick="resetColorNames()" style="flex:1">Zurücksetzen</button>` : ''}
-      </div>
+      <button class="btn btn-s btn-w no-print" onclick="printLegend()">🖨️ Legende drucken</button>
     </div>
 
     <div class="sec">Zimmer</div>
@@ -157,7 +156,7 @@ export function renderSettings() {
   </div>`;
 }
 
-export function setCurrentUser(v) { state.currentUser = v; saveSettings(); }
+export function setCurrentUser(v) { const t = v.trim(); if (t) { state.currentUser = t; saveSettings(); } }
 export function state_setGClientId(v) { state.gClientId = v; }
 export function state_setScriptUrl(v) { state.scriptUrl = v; }
 export async function saveGClientId() { await saveSettings(); toast('✅ Gespeichert'); }
@@ -195,20 +194,15 @@ export function importJSON(input) {
   fr.readAsText(file);
 }
 
-export async function setColorName(id, name) {
-  const trimmed = name.trim();
-  const original = COLORS.find(c => c.id === id)?.name || '';
-  const names = { ...state.customColorNames };
-  if (trimmed && trimmed !== original) names[id] = trimmed;
-  else delete names[id];
-  state.customColorNames = names;
+export async function toggleColor(id, enabled) {
+  const disabled = state.disabledColorIds.filter(x => x !== id);
+  if (!enabled) {
+    const wouldRemain = COLORS.filter(c => !disabled.includes(c.id) && c.id !== id);
+    if (wouldRemain.length === 0) return;
+    disabled.push(id);
+  }
+  state.disabledColorIds = disabled;
   await saveSettings();
-}
-
-export async function resetColorNames() {
-  state.customColorNames = {};
-  await saveSettings();
-  window.render?.();
 }
 
 export async function addRoom() {
