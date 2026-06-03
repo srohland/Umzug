@@ -1,8 +1,13 @@
 import { state } from './state.js';
-import { COLORS } from './constants.js';
+import { COLORS, ROOMS } from './constants.js';
 
 export const getBox = id => state.boxes.find(b => b.id === id);
-export const getColor = id => COLORS.find(c => c.id === id) || COLORS[4];
+export const getRooms = () => state.customRooms || ROOMS;
+export const getColor = id => {
+  const base = COLORS.find(c => c.id === id) || COLORS[4];
+  const customName = state.customColorNames?.[base.id];
+  return customName ? { ...base, name: customName } : base;
+};
 export const uid = () => 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 export const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 export const escAttr = s => esc(s).replace(/'/g,'&#39;');

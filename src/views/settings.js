@@ -1,6 +1,6 @@
 import { state } from '../state.js';
-import { esc, activeBoxes, sanitizeBox, toast } from '../helpers.js';
-import { COLORS, USERS } from '../constants.js';
+import { esc, activeBoxes, getRooms, sanitizeBox, toast } from '../helpers.js';
+import { COLORS, ROOMS, USERS } from '../constants.js';
 import { saveSettings, saveBoxes } from '../storage.js';
 import { driveSync } from '../sync.js';
 import { ensureGToken } from '../drive.js';
@@ -41,8 +41,9 @@ function installSection() {
 export function renderSettings() {
   document.getElementById('hdr-title').textContent = '⚙️ Einstellungen';
   document.getElementById('hdr-actions').innerHTML = '';
-  const bc = state.boxes.length;
-  const ic = state.boxes.reduce((s, b) => s + (b.items?.length || 0), 0);
+  const boxes = activeBoxes();
+  const bc = boxes.length;
+  const ic = boxes.reduce((s, b) => s + (b.items?.length || 0), 0);
   const uOpts = USERS.map(u => `<option${state.currentUser === u ? ' selected' : ''}>${u}</option>`).join('');
   document.getElementById('content').innerHTML = `<div class="scroll-area">
     ${installSection()}
@@ -118,16 +119,39 @@ export function renderSettings() {
       </details>
     </div>
 
-    <div class="sec">Farbcode-Legende</div>
+    <div class="sec">Farbbezeichnungen</div>
     <div class="card">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;font-weight:500">Jede Farbe entspricht einem Abstellbereich im Zielort. Drucke diese Legende für Umzugshelfer aus.</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        ${COLORS.map(c => `<div class="legend-item">
-          <div class="legend-dot" style="background:${c.hex}"></div>
-          <span style="font-size:13px;font-weight:700">${c.name}</span>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;font-weight:500">Benenne Farben nach Zimmern oder Bereichen im Zielort – z.B. „Rot → Schlafzimmer Eltern".</p>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+        ${COLORS.map(c => `<div style="display:flex;align-items:center;gap:10px">
+          <div style="width:22px;height:22px;border-radius:5px;background:${c.hex};flex-shrink:0;border:1px solid rgba(0,0,0,.12)"></div>
+          <span style="font-size:17px;flex-shrink:0">${c.emoji}</span>
+          <input type="text" value="${esc(state.customColorNames?.[c.id] || c.name)}"
+            style="flex:1;font-size:14px;font-weight:600;min-width:0"
+            onchange="setColorName('${c.id}',this.value)">
         </div>`).join('')}
       </div>
-      <button class="btn btn-s btn-w no-print" onclick="printLegend()" style="margin-top:12px">🖨️ Legende drucken</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-s btn-w no-print" onclick="printLegend()" style="flex:1">🖨️ Legende drucken</button>
+        ${Object.keys(state.customColorNames || {}).length ? `<button class="btn btn-s" onclick="resetColorNames()" style="flex:1">Zurücksetzen</button>` : ''}
+      </div>
+    </div>
+
+    <div class="sec">Zimmer</div>
+    <div class="card">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;font-weight:500">Zimmer für die Herkunfts- und Zielauswahl.</p>
+      ${getRooms().map((r, i, arr) => `<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <span style="flex:1;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r)}</span>
+        <button class="btn btn-s" style="padding:4px 8px" onclick="moveRoom(${i},-1)"${i === 0 ? ' disabled' : ''}>↑</button>
+        <button class="btn btn-s" style="padding:4px 8px" onclick="moveRoom(${i},1)"${i === arr.length - 1 ? ' disabled' : ''}>↓</button>
+        <button class="btn btn-d" style="padding:4px 8px" onclick="removeRoom(${i})">✕</button>
+      </div>`).join('')}
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <input type="text" id="new-room-input" placeholder="Neues Zimmer…" style="flex:1"
+          onkeydown="if(event.key==='Enter')addRoom()">
+        <button class="btn btn-p" onclick="addRoom()">+ Hinzufügen</button>
+      </div>
+      ${state.customRooms ? `<button class="btn btn-s btn-w" onclick="resetRooms()" style="margin-top:10px">Zurücksetzen auf Standard</button>` : ''}
     </div>
     <div style="height:20px"></div>
   </div>`;
@@ -171,6 +195,57 @@ export function importJSON(input) {
   fr.readAsText(file);
 }
 
+export async function setColorName(id, name) {
+  const trimmed = name.trim();
+  const original = COLORS.find(c => c.id === id)?.name || '';
+  const names = { ...state.customColorNames };
+  if (trimmed && trimmed !== original) names[id] = trimmed;
+  else delete names[id];
+  state.customColorNames = names;
+  await saveSettings();
+}
+
+export async function resetColorNames() {
+  state.customColorNames = {};
+  await saveSettings();
+  window.render?.();
+}
+
+export async function addRoom() {
+  const input = document.getElementById('new-room-input');
+  const name = input?.value.trim();
+  if (!name) return;
+  const rooms = [...getRooms()];
+  if (!rooms.includes(name)) rooms.push(name);
+  state.customRooms = rooms;
+  await saveSettings();
+  window.render?.();
+}
+
+export async function removeRoom(idx) {
+  const rooms = [...getRooms()];
+  rooms.splice(idx, 1);
+  state.customRooms = rooms;
+  await saveSettings();
+  window.render?.();
+}
+
+export async function moveRoom(idx, dir) {
+  const rooms = [...getRooms()];
+  const target = idx + dir;
+  if (target < 0 || target >= rooms.length) return;
+  [rooms[idx], rooms[target]] = [rooms[target], rooms[idx]];
+  state.customRooms = rooms;
+  await saveSettings();
+  window.render?.();
+}
+
+export async function resetRooms() {
+  state.customRooms = null;
+  await saveSettings();
+  window.render?.();
+}
+
 export function printLegend() {
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Farbcode-Legende</title>
@@ -180,7 +255,7 @@ export function printLegend() {
     .name{font-size:16px;font-weight:700}</style></head><body>
     <h1>📦 UmzugsBox – Farbcode-Legende</h1>
     <p style="margin-bottom:16px;color:#666">Bitte Karton in den Bereich der entsprechenden Farbe stellen:</p>
-    ${COLORS.map(c => `<div class="item"><div class="dot" style="background:${c.hex}"></div><div class="name">${c.name}</div></div>`).join('')}
+    ${COLORS.map(c => `<div class="item"><div class="dot" style="background:${c.hex}"></div><div class="name">${state.customColorNames?.[c.id] || c.name}</div></div>`).join('')}
     </body></html>`);
   w.document.close();
   setTimeout(() => w.print(), 300);

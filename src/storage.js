@@ -46,6 +46,8 @@ export async function loadData() {
       state.lastSync = s.lastSync || null;
       state.gClientId = s.gClientId || '';
       state.rootFolderId = s.rootFolderId || null;
+      state.customRooms = Array.isArray(s.customRooms) ? s.customRooms : null;
+      state.customColorNames = (s.customColorNames && typeof s.customColorNames === 'object') ? s.customColorNames : {};
     }
   } catch(e) {}
 }
@@ -68,6 +70,8 @@ export async function saveSettings() {
       lastSync: state.lastSync,
       gClientId: state.gClientId,
       rootFolderId: state.rootFolderId,
+      customRooms: state.customRooms,
+      customColorNames: state.customColorNames,
     }), false);
   } catch(e) {}
 }

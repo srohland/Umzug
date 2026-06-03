@@ -34,6 +34,8 @@ import {
   exportJSON, importJSON, saveScriptUrl, printLegend,
   setCurrentUser, state_setGClientId, state_setScriptUrl,
   saveGClientId, connectGDrive,
+  setColorName, resetColorNames,
+  addRoom, removeRoom, moveRoom, resetRooms,
 } from './views/settings.js';
 
 import { ensureGToken } from './drive.js';
@@ -68,6 +70,8 @@ Object.assign(window, {
   exportJSON, importJSON, saveScriptUrl, printLegend,
   setCurrentUser, state_setGClientId, state_setScriptUrl,
   saveGClientId, connectGDrive,
+  setColorName, resetColorNames,
+  addRoom, removeRoom, moveRoom, resetRooms,
   driveSync,
   saveSettings,
   ensureGToken,

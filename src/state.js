@@ -1,6 +1,8 @@
 export const state = {
   boxes: [],
   deletedBoxIds: {},
+  customRooms: null,
+  customColorNames: {},
   view: 'list',
   selBox: null,
   selItem: null,

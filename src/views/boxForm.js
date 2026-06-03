@@ -1,6 +1,6 @@
 import { state } from '../state.js';
-import { esc, getBox, getColor, uid, toast } from '../helpers.js';
-import { COLORS, ROOMS } from '../constants.js';
+import { esc, getRooms, getBox, getColor, uid, toast } from '../helpers.js';
+import { COLORS } from '../constants.js';
 import { saveBoxes } from '../storage.js';
 import { saveFullPhoto, compressImage, pushPhotoToDrive } from '../photo.js';
 
@@ -12,8 +12,8 @@ export function renderBoxForm(isNew) {
   }
   document.getElementById('hdr-title').textContent = isNew ? 'Neuer Karton' : 'Karton bearbeiten';
   document.getElementById('hdr-actions').innerHTML = '';
-  const rOpts = ROOMS.map(r => `<option value="${r}"${state.tempBox.sourceRoom === r ? ' selected' : ''}>${r}</option>`).join('');
-  const dOpts = ROOMS.map(r => `<option value="${r}"${state.tempBox.destination === r ? ' selected' : ''}>${r}</option>`).join('');
+  const rOpts = getRooms().map(r => `<option value="${r}"${state.tempBox.sourceRoom === r ? ' selected' : ''}>${r}</option>`).join('');
+  const dOpts = getRooms().map(r => `<option value="${r}"${state.tempBox.destination === r ? ' selected' : ''}>${r}</option>`).join('');
   const swatches = COLORS.map(c => `<div class="csw${state.tempBox.color === c.id ? ' sel' : ''}"
     style="background:${c.hex}" title="${c.name}" onclick="pickColor('${c.id}',this)"></div>`).join('');
   const selCol = getColor(state.tempBox.color);
