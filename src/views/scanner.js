@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { esc, getBox, getColor, toast } from '../helpers.js';
+import { esc, escAttr, getBox, getColor, toast } from '../helpers.js';
 
 export function renderScanner() {
   document.getElementById('hdr-title').textContent = '🔍 QR-Code scannen';
@@ -72,7 +72,7 @@ export function doSearch(q) {
   if (!res.length) { el.innerHTML = `<p style="color:var(--muted);font-size:14px">Keine Treffer</p>`; return; }
   el.innerHTML = res.map(b => {
     const c = getColor(b.color);
-    return `<button class="box-card" style="margin-bottom:8px" onclick="navigate('detail',{boxId:'${b.id}'})">
+    return `<button class="box-card" style="margin-bottom:8px" onclick="navigate('detail',{boxId:'${escAttr(b.id)}'})">
       <div class="color-slab" style="background:${c.hex}">${c.emoji}</div>
       <div class="box-info"><div class="box-name">${esc(b.name)}</div>
         <div class="box-meta">${esc(b.sourceRoom || '—')} → ${esc(b.destination || '—')}</div>

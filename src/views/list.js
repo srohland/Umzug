@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { esc, getColor } from '../helpers.js';
+import { esc, escAttr, getColor } from '../helpers.js';
 
 export function renderList() {
   document.getElementById('hdr-title').textContent = '📦 UmzugsBox';
@@ -27,7 +27,7 @@ export function renderList() {
     rb.forEach(box => {
       const col = getColor(box.color);
       const ic = box.items?.length || 0;
-      html += `<button class="box-card" onclick="navigate('detail',{boxId:'${box.id}'})">
+      html += `<button class="box-card" onclick="navigate('detail',{boxId:'${escAttr(box.id)}'})">
         <div class="color-slab" style="background:${col.hex}">${col.emoji}</div>
         <div class="box-info">
           <div class="box-name">${esc(box.name)}</div>

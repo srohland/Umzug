@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { esc, getColor, highlight } from '../helpers.js';
+import { esc, escAttr, getColor, highlight } from '../helpers.js';
 
 export function renderSearch() {
   document.getElementById('hdr-title').textContent = '🔎 Suche';
@@ -61,7 +61,7 @@ export function runItemSearch(q) {
     html += `<div class="sec">📦 Gegenstände (${itemHits.length})</div>`;
     itemHits.forEach(({ item, box }) => {
       const col = getColor(box.color);
-      html += `<button class="box-card" onclick="navigate('detail',{boxId:'${box.id}'})" style="align-items:flex-start">
+      html += `<button class="box-card" onclick="navigate('detail',{boxId:'${escAttr(box.id)}'})" style="align-items:flex-start">
         <div class="color-slab" style="background:${col.hex};margin-top:2px">${col.emoji}</div>
         <div class="box-info">
           <div class="item-name" style="font-size:15px">${highlight(item.name, term)}</div>
@@ -80,7 +80,7 @@ export function runItemSearch(q) {
     boxHits.forEach(box => {
       const col = getColor(box.color);
       const ic = box.items?.length || 0;
-      html += `<button class="box-card" onclick="navigate('detail',{boxId:'${box.id}'})">
+      html += `<button class="box-card" onclick="navigate('detail',{boxId:'${escAttr(box.id)}'})">
         <div class="color-slab" style="background:${col.hex}">${col.emoji}</div>
         <div class="box-info">
           <div class="box-name">${highlight(box.name, term)}</div>

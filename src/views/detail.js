@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { esc, getBox, getColor, showQR } from '../helpers.js';
+import { esc, escAttr, getBox, getColor, showQR } from '../helpers.js';
 
 export function renderDetail() {
   const box = getBox(state.selBox);
@@ -19,7 +19,7 @@ export function renderDetail() {
     <div class="card">
       <div class="dcb" style="background:${col.hex}"></div>
       ${box.thumbnail
-        ? `<div class="box-photo-wrap no-print" onclick="openPhotoModal('${box.id}','${box.thumbnail}',false,'${box.drivePhotoId || ''}')">
+        ? `<div class="box-photo-wrap no-print" onclick="openPhotoModal('${escAttr(box.id)}','${escAttr(box.thumbnail)}',false,'${escAttr(box.drivePhotoId || '')}')">
             <img src="${box.thumbnail}" alt="Karton Foto">
             <div style="position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px">${box.drivePhotoId ? '☁️ Tippen für Vollbild' : 'Tippen zum Vergrößern'}</div>
           </div>`
@@ -43,25 +43,25 @@ export function renderDetail() {
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <span style="font-weight:800;font-size:15px">Inhalt <span style="color:var(--muted);font-weight:600">(${items.length})</span></span>
-        <button class="btn btn-s btn-sm no-print" onclick="navigate('new-item',{boxId:'${box.id}'})">+ Hinzufügen</button>
+        <button class="btn btn-s btn-sm no-print" onclick="navigate('new-item',{boxId:'${escAttr(box.id)}'})">+ Hinzufügen</button>
       </div>
       ${items.length === 0
         ? '<div style="text-align:center;padding:24px 0;color:var(--muted);font-size:14px;font-weight:500">Noch keine Gegenstände erfasst</div>'
         : items.map(it => `<div class="item-row">
           ${it.thumbnail
-            ? `<img class="photo-thumb" src="${it.thumbnail}" onclick="openPhotoModal('${it.id}','${it.thumbnail}',true,'${it.drivePhotoId || ''}')">`
+            ? `<img class="photo-thumb" src="${escAttr(it.thumbnail)}" onclick="openPhotoModal('${escAttr(it.id)}','${escAttr(it.thumbnail)}',true,'${escAttr(it.drivePhotoId || '')}')">`
             : `<div class="photo-placeholder no-print" title="Foto hinzufügen"
-                onclick="document.getElementById('photo-item-quick-${it.id}').click()">📷
-                <input type="file" id="photo-item-quick-${it.id}" accept="image/*" capture="environment" style="display:none"
-                  onchange="quickItemPhoto(this,'${box.id}','${it.id}')">
+                onclick="document.getElementById('photo-item-quick-${escAttr(it.id)}').click()">📷
+                <input type="file" id="photo-item-quick-${escAttr(it.id)}" accept="image/*" capture="environment" style="display:none"
+                  onchange="quickItemPhoto(this,'${escAttr(box.id)}','${escAttr(it.id)}')">
               </div>`}
           <div class="item-body">
             <div class="item-name">${esc(it.name)}</div>
             ${it.notes ? `<div class="item-note">${esc(it.notes)}</div>` : ''}
           </div>
           <span class="item-qty">${it.quantity}×</span>
-          <button class="icon-btn no-print" onclick="navigate('edit-item',{boxId:'${box.id}',itemId:'${it.id}'})">✏️</button>
-          <button class="icon-btn no-print" onclick="delItem('${box.id}','${it.id}')">🗑️</button>
+          <button class="icon-btn no-print" onclick="navigate('edit-item',{boxId:'${escAttr(box.id)}',itemId:'${escAttr(it.id)}'})">✏️</button>
+          <button class="icon-btn no-print" onclick="delItem('${escAttr(box.id)}','${escAttr(it.id)}')">🗑️</button>
         </div>`).join('')}
     </div>
 

@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { esc, toast } from '../helpers.js';
+import { esc, sanitizeBox, toast } from '../helpers.js';
 import { COLORS, USERS } from '../constants.js';
 import { saveSettings, saveBoxes } from '../storage.js';
 import { driveSync } from '../sync.js';
@@ -158,7 +158,10 @@ export function importJSON(input) {
       const d = JSON.parse(e.target.result);
       if (!Array.isArray(d.boxes)) throw new Error('Ungültiges Format');
       let added = 0;
-      d.boxes.forEach(b => { if (!state.boxes.find(x => x.id === b.id)) { state.boxes.push(b); added++; } });
+      d.boxes.forEach(b => {
+        const safe = sanitizeBox(b);
+        if (safe && !state.boxes.find(x => x.id === safe.id)) { state.boxes.push(safe); added++; }
+      });
       await saveBoxes();
       toast(`✅ ${added} neue Karton${added !== 1 ? 's' : ''} importiert`);
       if (state.view === 'settings') window.render?.();

@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { toast } from './helpers.js';
+import { toast, sanitizeBox } from './helpers.js';
 import { saveBoxes, saveSettings } from './storage.js';
 
 function setSyncIndicator(active) {
@@ -24,12 +24,14 @@ export async function driveSync(silent = false) {
 
     const prevCount = state.boxes.length;
     const merged = data.boxes.map(serverBox => {
-      const local = state.boxes.find(b => b.id === serverBox.id);
-      if (!local) return serverBox;
+      const safe = sanitizeBox(serverBox);
+      if (!safe) return null;
+      const local = state.boxes.find(b => b.id === safe.id);
+      if (!local) return safe;
       const localDate = new Date(local.updatedAt || 0);
-      const serverDate = new Date(serverBox.updatedAt || 0);
-      return localDate > serverDate ? local : serverBox;
-    });
+      const serverDate = new Date(safe.updatedAt || 0);
+      return localDate > serverDate ? local : safe;
+    }).filter(Boolean);
     state.boxes.forEach(lb => { if (!merged.find(b => b.id === lb.id)) merged.push(lb); });
     state.boxes = merged;
     state.lastSync = new Date().toISOString();
