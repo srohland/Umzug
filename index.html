@@ -273,9 +273,9 @@ async function loadData(){
     lastSync=s.lastSync||null;gClientId=s.gClientId||'';rootFolderId=s.rootFolderId||null;
   }}catch(e){}
 }
-async function saveBoxes(){
+async function saveBoxes(skipSync=false){
   try{await store.set('ub_boxes',JSON.stringify(boxes),true);}catch(e){toast('❌ Speicherfehler');}
-  scheduleSync();
+  if(!skipSync) scheduleSync();
 }
 async function saveSettings(){
   try{await store.set('ub_settings',JSON.stringify({user:currentUser,scriptUrl,lastSync,gClientId,rootFolderId}),false);}catch(e){}
@@ -1186,7 +1186,7 @@ async function driveSync(silent=false){
     boxes.forEach(lb=>{if(!merged.find(b=>b.id===lb.id))merged.push(lb);});
     boxes=merged;
     lastSync=new Date().toISOString();
-    await saveBoxes();
+    await saveBoxes(true);  // skipSync=true to avoid infinite loop
     await saveSettings();
     const newBoxes=boxes.length-prevCount;
     if(!silent)toast(`✅ Sync – ${boxes.length} Kartons`);
@@ -1231,10 +1231,10 @@ function printLegend(){
 // ═══════════════════════════════════════════════════════
 loadData().then(()=>{
   render();
-  // Sync on startup
-  if(scriptUrl) driveSync(true);
+  // Sync on startup - render() inside driveSync will update view when done
+  if(scriptUrl) driveSync(true).catch(()=>{});
   // Sync every 5 minutes
-  setInterval(()=>{if(scriptUrl)driveSync(true);}, 5*60*1000);
+  setInterval(()=>{if(scriptUrl&&!isSyncing)driveSync(true).catch(()=>{});}, 5*60*1000);
 });
 </script>
 </body>
