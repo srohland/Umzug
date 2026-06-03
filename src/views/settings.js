@@ -126,7 +126,7 @@ export function renderSettings() {
         ${COLORS.map(c => {
           const enabled = !state.disabledColorIds.includes(c.id);
           return `<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 4px;border-radius:8px">
-            <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleColor('${c.id}',this.checked)"
+            <input type="checkbox" ${enabled ? 'checked' : ''} onclick="toggleColor('${c.id}')"
               style="width:18px;height:18px;accent-color:${c.hex};cursor:pointer;flex-shrink:0">
             <div style="width:20px;height:20px;border-radius:5px;background:${c.hex};flex-shrink:0;border:1px solid rgba(0,0,0,.12)"></div>
             <span style="font-size:14px;font-weight:600">${c.name}</span>
@@ -194,15 +194,17 @@ export function importJSON(input) {
   fr.readAsText(file);
 }
 
-export async function toggleColor(id, enabled) {
-  const disabled = state.disabledColorIds.filter(x => x !== id);
-  if (!enabled) {
-    const wouldRemain = COLORS.filter(c => !disabled.includes(c.id) && c.id !== id);
+export async function toggleColor(id) {
+  const isDisabled = state.disabledColorIds.includes(id);
+  if (isDisabled) {
+    state.disabledColorIds = state.disabledColorIds.filter(x => x !== id);
+  } else {
+    const wouldRemain = COLORS.filter(c => c.id !== id && !state.disabledColorIds.includes(c.id));
     if (wouldRemain.length === 0) return;
-    disabled.push(id);
+    state.disabledColorIds = [...state.disabledColorIds, id];
   }
-  state.disabledColorIds = disabled;
   await saveSettings();
+  window.render?.();
 }
 
 export async function addRoom() {

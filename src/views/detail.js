@@ -70,8 +70,9 @@ export function renderDetail() {
       <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
         <div id="qr-code" style="padding:12px;background:#fff;border-radius:12px;box-shadow:0 0 0 1px var(--border)"></div>
         <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:900;color:var(--ink);text-align:center;letter-spacing:3px">${esc(box.boxNumber || box.id)}</div>
-        <div style="display:flex;gap:8px;width:100%">
+        <div style="display:flex;gap:8px;width:100%;flex-wrap:wrap">
           <button class="btn btn-s btn-sm no-print" style="flex:1" onclick="printLabels('${escAttr(box.id)}')">🏷️ Etiketten</button>
+          <button class="btn btn-s btn-sm no-print" style="flex:1" onclick="downloadLabelPng('${escAttr(box.id)}')">📥 PNG</button>
           <button class="btn btn-s btn-sm no-print" style="flex:1" onclick="printInventory('${escAttr(box.id)}')">📋 Inventar</button>
         </div>
       </div>
