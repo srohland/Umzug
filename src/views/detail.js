@@ -69,11 +69,14 @@ export function renderDetail() {
       <div style="font-weight:800;font-size:15px;margin-bottom:14px">QR-Code</div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
         <div id="qr-code" style="padding:12px;background:#fff;border-radius:12px;box-shadow:0 0 0 1px var(--border)"></div>
-        <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);text-align:center">${box.id}</div>
-        <button class="btn btn-s btn-sm no-print" onclick="window.print()">🖨️ QR drucken</button>
+        <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:900;color:var(--ink);text-align:center;letter-spacing:3px">${esc(box.boxNumber || box.id)}</div>
+        <div style="display:flex;gap:8px;width:100%">
+          <button class="btn btn-s btn-sm no-print" style="flex:1" onclick="printLabels('${escAttr(box.id)}')">🏷️ Etiketten</button>
+          <button class="btn btn-s btn-sm no-print" style="flex:1" onclick="printInventory('${escAttr(box.id)}')">📋 Inventar</button>
+        </div>
       </div>
     </div>
     <div style="height:20px"></div>
   </div>`;
-  setTimeout(() => showQR('qr-code', 'UMZUGSBOX:' + box.id), 60);
+  setTimeout(() => showQR('qr-code', 'UMZUGSBOX:' + (box.boxNumber || box.id)), 60);
 }

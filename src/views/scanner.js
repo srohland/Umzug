@@ -47,11 +47,11 @@ export function killScanner() {
 
 function handleScan(text) {
   if (text.startsWith('UMZUGSBOX:')) {
-    const id = text.slice(10);
-    const box = getBox(id);
+    const token = text.slice(10);
+    const box = state.boxes.find(b => !b.deletedAt && (b.boxNumber === token || b.id === token));
     if (box) {
       toast('✅ Karton gefunden!');
-      window.navigate?.('detail', { boxId: id });
+      window.navigate?.('detail', { boxId: box.id });
     } else {
       const m = document.getElementById('scan-msg');
       if (m) m.innerHTML = `<span style="color:var(--danger)">❌ Karton nicht gefunden</span>`;
@@ -68,7 +68,8 @@ export function doSearch(q) {
   const el = document.getElementById('search-results');
   if (!el) return;
   if (!q.trim()) { el.innerHTML = ''; return; }
-  const res = activeBoxes().filter(b => b.name.toLowerCase().includes(q.toLowerCase()) || b.id.includes(q));
+  const ql = q.toLowerCase();
+  const res = activeBoxes().filter(b => b.name.toLowerCase().includes(ql) || b.id.includes(ql) || (b.boxNumber && b.boxNumber.includes(q)));
   if (!res.length) { el.innerHTML = `<p style="color:var(--muted);font-size:14px">Keine Treffer</p>`; return; }
   el.innerHTML = res.map(b => {
     const c = getColor(b.color);

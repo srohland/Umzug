@@ -29,7 +29,7 @@ export function renderList() {
       html += `<button class="box-card" onclick="navigate('detail',{boxId:'${escAttr(box.id)}'})">
         <div class="color-slab" style="background:${col.hex}">${col.emoji}</div>
         <div class="box-info">
-          <div class="box-name">${esc(box.name)}</div>
+          <div class="box-name">${box.boxNumber ? `<span style="font-family:monospace;font-size:12px;font-weight:900;opacity:.6;margin-right:6px">${esc(box.boxNumber)}</span>` : ''}${esc(box.name)}</div>
           <div class="box-meta">${esc(box.sourceRoom || '—')} → ${esc(box.destination || '—')} · ${ic} Gegenstand${ic !== 1 ? 'stände' : ''}</div>
           ${box.lastEditor ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;font-weight:500">✏️ ${esc(box.lastEditor)}</div>` : ''}
         </div>

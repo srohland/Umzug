@@ -26,6 +26,9 @@ import {
 // Search
 import { runItemSearch } from './views/search.js';
 
+// Print
+import { printLabels, printInventory } from './views/print.js';
+
 // Scanner
 import { doSearch } from './views/scanner.js';
 
@@ -62,6 +65,9 @@ Object.assign(window, {
 
   // Search
   runItemSearch,
+
+  // Print
+  printLabels, printInventory,
 
   // Scanner
   doSearch,

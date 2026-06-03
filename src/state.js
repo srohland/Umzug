@@ -3,6 +3,7 @@ export const state = {
   deletedBoxIds: {},
   customRooms: null,
   disabledColorIds: [],
+  nextBoxNumber: 1,
   view: 'list',
   selBox: null,
   selItem: null,

@@ -48,6 +48,7 @@ export async function loadData() {
       state.rootFolderId = s.rootFolderId || null;
       state.customRooms = Array.isArray(s.customRooms) ? s.customRooms : null;
       state.disabledColorIds = Array.isArray(s.disabledColorIds) ? s.disabledColorIds : [];
+      state.nextBoxNumber = s.nextBoxNumber > 0 ? s.nextBoxNumber : 1;
     }
   } catch(e) {}
 }
@@ -72,6 +73,7 @@ export async function saveSettings() {
       rootFolderId: state.rootFolderId,
       customRooms: state.customRooms,
       disabledColorIds: state.disabledColorIds,
+      nextBoxNumber: state.nextBoxNumber,
     }), false);
   } catch(e) {}
 }

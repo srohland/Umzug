@@ -1,6 +1,6 @@
 import { state } from '../state.js';
 import { esc, getRooms, getEnabledColors, getBox, getColor, uid, toast } from '../helpers.js';
-import { saveBoxes } from '../storage.js';
+import { saveBoxes, saveSettings } from '../storage.js';
 import { saveFullPhoto, compressImage, pushPhotoToDrive } from '../photo.js';
 
 export function renderBoxForm(isNew) {
@@ -106,6 +106,10 @@ export async function quickItemPhoto(input, boxId, itemId) {
 
 export async function saveBox(isNew) {
   if (!state.tempBox.name.trim()) { toast('❌ Bitte einen Namen eingeben'); return; }
+  if (isNew && !state.tempBox.boxNumber) {
+    state.tempBox.boxNumber = String(state.nextBoxNumber).padStart(4, '0');
+    state.nextBoxNumber++;
+  }
   state.tempBox.lastEditor = state.currentUser;
   state.tempBox.updatedAt = new Date().toISOString();
   if (isNew) { state.tempBox.createdAt = state.tempBox.updatedAt; state.boxes.push(state.tempBox); state.selBox = state.tempBox.id; }
@@ -113,6 +117,7 @@ export async function saveBox(isNew) {
   const bid = state.tempBox.id;
   state.tempBox = null;
   await saveBoxes();
+  if (isNew) await saveSettings();
   toast('✅ Gespeichert');
   window.navigate?.('detail', { boxId: bid });
 }

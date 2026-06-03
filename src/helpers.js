@@ -46,6 +46,7 @@ export function sanitizeBox(b) {
     drivePhotoId: /^[A-Za-z0-9_-]*$/.test(drivePhotoId) ? drivePhotoId : '',
     thumbnail: thumb.startsWith('data:image/') ? thumb : '',
     items: Array.isArray(b.items) ? b.items.map(sanitizeItem).filter(Boolean) : [],
+    ...(b.boxNumber ? { boxNumber: String(b.boxNumber).slice(0, 10) } : {}),
     ...(b.deletedAt ? { deletedAt: String(b.deletedAt) } : {}),
   };
 }
