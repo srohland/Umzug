@@ -125,12 +125,13 @@ export function renderSettings() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
         ${COLORS.map(c => {
           const enabled = !state.disabledColorIds.includes(c.id);
-          return `<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 4px;border-radius:8px">
-            <input type="checkbox" ${enabled ? 'checked' : ''} onclick="toggleColor('${c.id}')"
-              style="width:18px;height:18px;accent-color:${c.hex};cursor:pointer;flex-shrink:0">
-            <div style="width:20px;height:20px;border-radius:5px;background:${c.hex};flex-shrink:0;border:1px solid rgba(0,0,0,.12)"></div>
-            <span style="font-size:14px;font-weight:600">${c.name}</span>
-          </label>`;
+          const tickColor = ['gelb', 'weiss'].includes(c.id) ? '#1e293b' : '#fff';
+          return `<div onclick="toggleColor('${c.id}')" style="display:flex;align-items:center;gap:9px;padding:8px;border-radius:9px;cursor:pointer;border:2px solid ${enabled ? c.hex : 'var(--border)'};opacity:${enabled ? '1' : '0.45'}">
+            <div style="width:22px;height:22px;border-radius:5px;background:${c.hex};flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1px solid rgba(0,0,0,.1)">
+              ${enabled ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${tickColor}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>` : ''}
+            </div>
+            <span style="font-size:13px;font-weight:700;line-height:1.2">${c.name}</span>
+          </div>`;
         }).join('')}
       </div>
       <button class="btn btn-s btn-w no-print" onclick="printLegend()">🖨️ Legende drucken</button>
