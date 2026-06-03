@@ -1,31 +1,56 @@
 import { getBox, getColor } from '../helpers.js';
 
-async function makeQrDataUrl(text) {
+async function generateLabelPng(box) {
+  const col = getColor(box.color);
+  const num = box.boxNumber || box.id;
+  const textColor = ['gelb', 'weiss'].includes(box.color) ? '#1e293b' : '#fff';
+
   const QRCode = (await import('qrcode')).default;
-  return QRCode.toDataURL(text, {
-    width: 300,
+  const qrDataUrl = await QRCode.toDataURL('UMZUGSBOX:' + num, {
+    width: 400,
     margin: 1,
     color: { dark: '#0f172a', light: '#ffffff' },
     errorCorrectionLevel: 'H',
   });
+
+  const qrSize = 400;
+  const stripH = Math.round(qrSize / 3);
+  const canvas = document.createElement('canvas');
+  canvas.width = qrSize;
+  canvas.height = qrSize + stripH;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  await new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => { ctx.drawImage(img, 0, 0, qrSize, qrSize); resolve(); };
+    img.src = qrDataUrl;
+  });
+
+  ctx.fillStyle = col.hex;
+  ctx.fillRect(0, qrSize, canvas.width, stripH);
+
+  const numFontSize = Math.round(stripH * 0.55);
+  ctx.font = `900 ${numFontSize}px monospace`;
+  ctx.fillStyle = textColor;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.fillText(num, Math.round(canvas.width * 0.06), qrSize + stripH / 2);
+
+  ctx.font = `700 ${Math.round(stripH * 0.22)}px sans-serif`;
+  ctx.textAlign = 'right';
+  ctx.fillText(`${col.emoji} ${col.name}`, canvas.width - Math.round(canvas.width * 0.06), qrSize + stripH / 2);
+
+  return canvas.toDataURL('image/png');
 }
 
 export async function printLabels(boxId) {
   const box = getBox(boxId);
   if (!box) return;
-  const col = getColor(box.color);
   const num = box.boxNumber || box.id;
-  const textColor = ['gelb', 'weiss'].includes(box.color) ? '#1e293b' : '#fff';
-  const qrDataUrl = await makeQrDataUrl('UMZUGSBOX:' + num);
-
-  const label = `
-    <div class="label">
-      <img src="${qrDataUrl}" class="qr">
-      <div class="strip" style="background:${col.hex};color:${textColor}">
-        <span class="num">${num}</span>
-        <span class="cname">${col.emoji} ${col.name}</span>
-      </div>
-    </div>`;
+  const pngDataUrl = await generateLabelPng(box);
 
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -35,18 +60,16 @@ export async function printLabels(boxId) {
       body { font-family: sans-serif; }
       @page { size: A4 portrait; margin: 8mm; }
       .page { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 0; width: 190mm; height: 277mm; }
-      .label { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed #bbb; }
-      .qr { width: 70mm; height: 70mm; display: block; }
-      .strip {
-        width: 70mm; height: 23mm;
-        display: flex; align-items: center; justify-content: space-between; padding: 0 5mm;
-        print-color-adjust: exact; -webkit-print-color-adjust: exact;
-      }
-      .num { font-size: 26pt; font-weight: 900; font-family: monospace; letter-spacing: 3px; }
-      .cname { font-size: 10pt; font-weight: 700; text-align: right; line-height: 1.3; }
+      .cell { display: flex; align-items: center; justify-content: center; border: 1px dashed #bbb; }
+      .cell img { width: 88mm; height: auto; display: block; }
     </style>
   </head><body>
-    <div class="page">${label}${label}${label}${label}</div>
+    <div class="page">
+      <div class="cell"><img src="${pngDataUrl}"></div>
+      <div class="cell"><img src="${pngDataUrl}"></div>
+      <div class="cell"><img src="${pngDataUrl}"></div>
+      <div class="cell"><img src="${pngDataUrl}"></div>
+    </div>
   </body></html>`);
   w.document.close();
   setTimeout(() => w.print(), 400);
@@ -104,55 +127,4 @@ export function printInventory(boxId) {
   </body></html>`);
   w.document.close();
   setTimeout(() => w.print(), 300);
-}
-
-export async function downloadLabelPng(boxId) {
-  const box = getBox(boxId);
-  if (!box) return;
-  const col = getColor(box.color);
-  const num = box.boxNumber || box.id;
-  const textColor = ['gelb', 'weiss'].includes(box.color) ? '#1e293b' : '#fff';
-  const qrDataUrl = await makeQrDataUrl('UMZUGSBOX:' + num);
-
-  const qrSize = 400;
-  const stripH = Math.round(qrSize / 3);
-  const W = qrSize;
-  const H = qrSize + stripH;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d');
-
-  // White background
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, W, H);
-
-  // QR code image
-  await new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => { ctx.drawImage(img, 0, 0, qrSize, qrSize); resolve(); };
-    img.src = qrDataUrl;
-  });
-
-  // Color strip
-  ctx.fillStyle = col.hex;
-  ctx.fillRect(0, qrSize, W, stripH);
-
-  // Number
-  ctx.fillStyle = textColor;
-  ctx.font = `900 ${Math.round(stripH * 0.55)}px monospace`;
-  ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
-  ctx.fillText(num, Math.round(W * 0.06), qrSize + stripH / 2);
-
-  // Color name
-  ctx.font = `700 ${Math.round(stripH * 0.22)}px sans-serif`;
-  ctx.textAlign = 'right';
-  ctx.fillText(`${col.emoji} ${col.name}`, W - Math.round(W * 0.06), qrSize + stripH / 2);
-
-  const a = document.createElement('a');
-  a.href = canvas.toDataURL('image/png');
-  a.download = `karton-${num}.png`;
-  a.click();
 }
