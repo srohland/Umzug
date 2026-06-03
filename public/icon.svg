@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#4f46e5"/>
+  <!-- Box body -->
+  <rect x="88" y="212" width="336" height="220" rx="12" fill="white"/>
+  <!-- Box lid -->
+  <rect x="72" y="156" width="368" height="64" rx="10" fill="white"/>
+  <!-- Tape strip (lid) -->
+  <rect x="224" y="156" width="64" height="64" fill="#818cf8"/>
+  <!-- Tape strip (body) -->
+  <rect x="224" y="220" width="64" height="212" fill="#c7d2fe"/>
+  <!-- Lid seam shadow -->
+  <rect x="88" y="212" width="336" height="8" fill="#e0e7ff"/>
+</svg>
