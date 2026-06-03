@@ -3,7 +3,7 @@ import { esc, escAttr, getBox, getColor, showQR } from '../helpers.js';
 
 export function renderDetail() {
   const box = getBox(state.selBox);
-  if (!box) { window.navigate?.('list'); return; }
+  if (!box || box.deletedAt) { window.navigate?.('list'); return; }
   const col = getColor(box.color);
   const items = box.items || [];
   document.getElementById('hdr-title').textContent = box.name;

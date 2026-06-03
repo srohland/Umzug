@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { esc, sanitizeBox, toast } from '../helpers.js';
+import { esc, activeBoxes, sanitizeBox, toast } from '../helpers.js';
 import { COLORS, USERS } from '../constants.js';
 import { saveSettings, saveBoxes } from '../storage.js';
 import { driveSync } from '../sync.js';
@@ -141,7 +141,7 @@ export async function saveScriptUrl() { await saveSettings(); toast('✅ URL ges
 export async function connectGDrive() { if (await ensureGToken()) window.render?.(); }
 
 export function exportJSON() {
-  const data = JSON.stringify({ version: 2, exported: new Date().toISOString(), exportedBy: state.currentUser, boxes: state.boxes }, null, 2);
+  const data = JSON.stringify({ version: 2, exported: new Date().toISOString(), exportedBy: state.currentUser, boxes: activeBoxes() }, null, 2);
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
   a.download = `umzugsbox-${new Date().toISOString().slice(0, 10)}.json`;
@@ -160,7 +160,7 @@ export function importJSON(input) {
       let added = 0;
       d.boxes.forEach(b => {
         const safe = sanitizeBox(b);
-        if (safe && !state.boxes.find(x => x.id === safe.id)) { state.boxes.push(safe); added++; }
+        if (safe && !safe.deletedAt && !state.boxes.find(x => x.id === safe.id)) { state.boxes.push(safe); added++; }
       });
       await saveBoxes();
       toast(`✅ ${added} neue Karton${added !== 1 ? 's' : ''} importiert`);

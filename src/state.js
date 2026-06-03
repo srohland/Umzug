@@ -1,5 +1,6 @@
 export const state = {
   boxes: [],
+  deletedBoxIds: {},
   view: 'list',
   selBox: null,
   selItem: null,

@@ -120,7 +120,10 @@ export async function saveBox(isNew) {
 
 export async function delBox(id) {
   if (!confirm('Karton wirklich löschen? Alle Einträge gehen verloren.')) return;
-  state.boxes = state.boxes.filter(b => b.id !== id);
+  const now = new Date().toISOString();
+  state.deletedBoxIds[id] = now;
+  const box = state.boxes.find(b => b.id === id);
+  if (box) { box.deletedAt = now; box.updatedAt = now; }
   state.tempBox = null;
   await saveBoxes();
   window.navigate?.('list');

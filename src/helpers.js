@@ -6,6 +6,7 @@ export const getColor = id => COLORS.find(c => c.id === id) || COLORS[4];
 export const uid = () => 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 export const esc = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 export const escAttr = s => esc(s).replace(/'/g,'&#39;');
+export const activeBoxes = () => state.boxes.filter(b => !b.deletedAt);
 
 function sanitizeItem(it) {
   if (!it || typeof it !== 'object') return null;
@@ -42,6 +43,7 @@ export function sanitizeBox(b) {
     drivePhotoId: /^[A-Za-z0-9_-]*$/.test(drivePhotoId) ? drivePhotoId : '',
     thumbnail: thumb.startsWith('data:image/') ? thumb : '',
     items: Array.isArray(b.items) ? b.items.map(sanitizeItem).filter(Boolean) : [],
+    ...(b.deletedAt ? { deletedAt: String(b.deletedAt) } : {}),
   };
 }
 

@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { esc, escAttr, getColor, highlight } from '../helpers.js';
+import { esc, escAttr, activeBoxes, getColor, highlight } from '../helpers.js';
 
 export function renderSearch() {
   document.getElementById('hdr-title').textContent = '🔎 Suche';
@@ -35,7 +35,7 @@ export function runItemSearch(q) {
   const itemHits = [];
   const boxHits = [];
 
-  state.boxes.forEach(box => {
+  activeBoxes().forEach(box => {
     if (box.name.toLowerCase().includes(term) ||
         (box.sourceRoom || '').toLowerCase().includes(term) ||
         (box.destination || '').toLowerCase().includes(term)) {

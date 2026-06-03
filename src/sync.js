@@ -16,7 +16,7 @@ export async function driveSync(silent = false) {
   try {
     const resp = await fetch(state.scriptUrl, {
       method: 'POST',
-      body: JSON.stringify({ boxes: state.boxes, user: state.currentUser }),
+      body: JSON.stringify({ boxes: state.boxes, user: state.currentUser, deletedIds: state.deletedBoxIds }),
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
@@ -26,6 +26,8 @@ export async function driveSync(silent = false) {
     const merged = data.boxes.map(serverBox => {
       const safe = sanitizeBox(serverBox);
       if (!safe) return null;
+      const deletedAt = state.deletedBoxIds[safe.id];
+      if (deletedAt && deletedAt >= (safe.updatedAt || '')) return null;
       const local = state.boxes.find(b => b.id === safe.id);
       if (!local) return safe;
       const localDate = new Date(local.updatedAt || 0);
@@ -33,6 +35,9 @@ export async function driveSync(silent = false) {
       return localDate > serverDate ? local : safe;
     }).filter(Boolean);
     state.boxes.forEach(lb => { if (!merged.find(b => b.id === lb.id)) merged.push(lb); });
+    merged.filter(b => b.deletedAt).forEach(b => {
+      if (!state.deletedBoxIds[b.id]) state.deletedBoxIds[b.id] = b.deletedAt;
+    });
     state.boxes = merged;
     state.lastSync = new Date().toISOString();
     await saveBoxes(true);

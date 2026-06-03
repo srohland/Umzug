@@ -1,5 +1,5 @@
 import { state } from '../state.js';
-import { esc, escAttr, getBox, getColor, toast } from '../helpers.js';
+import { esc, escAttr, activeBoxes, getBox, getColor, toast } from '../helpers.js';
 
 export function renderScanner() {
   document.getElementById('hdr-title').textContent = '🔍 QR-Code scannen';
@@ -68,7 +68,7 @@ export function doSearch(q) {
   const el = document.getElementById('search-results');
   if (!el) return;
   if (!q.trim()) { el.innerHTML = ''; return; }
-  const res = state.boxes.filter(b => b.name.toLowerCase().includes(q.toLowerCase()) || b.id.includes(q));
+  const res = activeBoxes().filter(b => b.name.toLowerCase().includes(q.toLowerCase()) || b.id.includes(q));
   if (!res.length) { el.innerHTML = `<p style="color:var(--muted);font-size:14px">Keine Treffer</p>`; return; }
   el.innerHTML = res.map(b => {
     const c = getColor(b.color);

@@ -81,6 +81,7 @@ export async function delItem(boxId, itemId, nav = false) {
   if (!box) return;
   box.items = box.items.filter(i => i.id !== itemId);
   box.lastEditor = state.currentUser;
+  box.updatedAt = new Date().toISOString();
   await saveBoxes();
   toast('🗑️ Gelöscht');
   if (nav) window.navigate?.('detail', { boxId });

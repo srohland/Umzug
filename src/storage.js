@@ -34,6 +34,10 @@ export async function loadData() {
     if (r) state.boxes = JSON.parse(r.value);
   } catch(e) { state.boxes = []; }
   try {
+    const r = await store.get('ub_deleted', true);
+    if (r) state.deletedBoxIds = JSON.parse(r.value);
+  } catch(e) { state.deletedBoxIds = {}; }
+  try {
     const r = await store.get('ub_settings', false);
     if (r) {
       const s = JSON.parse(r.value);
@@ -49,6 +53,7 @@ export async function loadData() {
 export async function saveBoxes(skipSync = false) {
   try {
     await store.set('ub_boxes', JSON.stringify(state.boxes), true);
+    await store.set('ub_deleted', JSON.stringify(state.deletedBoxIds), true);
   } catch(e) {
     toast('❌ Speicherfehler');
   }

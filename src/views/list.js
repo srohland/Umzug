@@ -1,5 +1,4 @@
-import { state } from '../state.js';
-import { esc, escAttr, getColor } from '../helpers.js';
+import { esc, escAttr, activeBoxes, getColor } from '../helpers.js';
 
 export function renderList() {
   document.getElementById('hdr-title').textContent = '📦 UmzugsBox';
@@ -8,7 +7,7 @@ export function renderList() {
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>`;
   const c = document.getElementById('content');
-  if (state.boxes.length === 0) {
+  if (activeBoxes().length === 0) {
     c.innerHTML = `<div class="scroll-area"><div class="empty"><div class="emo">📦</div>
       <p style="font-size:20px;font-weight:800;margin-bottom:6px;color:var(--ink)">Noch keine Kartons</p>
       <p style="margin-bottom:28px">Erstelle deinen ersten Umzugskarton</p>
@@ -17,10 +16,10 @@ export function renderList() {
     return;
   }
   const groups = {};
-  state.boxes.forEach(b => { const k = b.sourceRoom || 'Sonstiges'; if (!groups[k]) groups[k] = []; groups[k].push(b); });
+  activeBoxes().forEach(b => { const k = b.sourceRoom || 'Sonstiges'; if (!groups[k]) groups[k] = []; groups[k].push(b); });
   let html = `<div class="scroll-area">
     <div style="color:var(--muted);font-size:13px;font-weight:600;margin-bottom:14px;padding:0 2px">
-      ${state.boxes.length} Karton${state.boxes.length !== 1 ? 'en' : ''} · ${state.boxes.reduce((s, b) => s + (b.items?.length || 0), 0)} Gegenstände
+      ${activeBoxes().length} Karton${activeBoxes().length !== 1 ? 'en' : ''} · ${activeBoxes().reduce((s, b) => s + (b.items?.length || 0), 0)} Gegenstände
     </div>`;
   Object.entries(groups).sort(([a], [b]) => a.localeCompare(b)).forEach(([room, rb]) => {
     html += `<div class="sec">📍 ${room}</div>`;
