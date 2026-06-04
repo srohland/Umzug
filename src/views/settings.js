@@ -4,7 +4,6 @@ import { COLORS, ROOMS } from '../constants.js';
 import { ensureGToken } from '../drive.js';
 import { saveSettings, saveBoxes } from '../storage.js';
 import { driveSync } from '../sync.js';
-import { ensureGToken } from '../drive.js';
 
 function installSection() {
   const canInstall = !!window.__pwaPrompt;

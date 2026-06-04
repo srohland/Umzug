@@ -41,7 +41,6 @@ import {
   addRoom, removeRoom, moveRoom, resetRooms,
 } from './views/settings.js';
 
-import { ensureGToken } from './drive.js';
 import { saveSettings } from './storage.js';
 import { toast } from './helpers.js';
 
