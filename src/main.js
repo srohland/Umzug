@@ -35,8 +35,8 @@ import { doSearch } from './views/scanner.js';
 // Settings
 import {
   exportJSON, importJSON, saveScriptUrl, printLegend,
-  setCurrentUser, state_setGClientId, state_setScriptUrl,
-  saveGClientId, connectGDrive,
+  setCurrentUser, state_setScriptUrl,
+  loadServiceAccountFile, clearServiceAccount, saveRootFolderId, testDriveConnection,
   toggleColor,
   addRoom, removeRoom, moveRoom, resetRooms,
 } from './views/settings.js';
@@ -74,13 +74,12 @@ Object.assign(window, {
 
   // Settings
   exportJSON, importJSON, saveScriptUrl, printLegend,
-  setCurrentUser, state_setGClientId, state_setScriptUrl,
-  saveGClientId, connectGDrive,
+  setCurrentUser, state_setScriptUrl,
+  loadServiceAccountFile, clearServiceAccount, saveRootFolderId, testDriveConnection,
   toggleColor,
   addRoom, removeRoom, moveRoom, resetRooms,
   driveSync,
   saveSettings,
-  ensureGToken,
 });
 
 // Cross-module bridges (used via window.* inside modules to avoid circular imports)

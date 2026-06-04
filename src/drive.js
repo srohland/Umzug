@@ -2,42 +2,67 @@ import { state } from './state.js';
 import { toast } from './helpers.js';
 import { saveBoxes, saveSettings } from './storage.js';
 
-async function loadGIS() {
-  if (window.google?.accounts?.oauth2) return;
-  return new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = 'https://accounts.google.com/gsi/client';
-    s.onload = res;
-    s.onerror = () => rej(new Error('Google nicht erreichbar'));
-    document.head.appendChild(s);
+function b64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+async function createJWT(sa) {
+  const enc = obj => btoa(unescape(encodeURIComponent(JSON.stringify(obj))))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  const now = Math.floor(Date.now() / 1000);
+  const header = enc({ alg: 'RS256', typ: 'JWT' });
+  const payload = enc({
+    iss: sa.client_email,
+    scope: 'https://www.googleapis.com/auth/drive.file',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now,
   });
+  const signingInput = `${header}.${payload}`;
+  const pem = sa.private_key.replace(/-----[^-]+-----/g, '').replace(/\s/g, '');
+  const keyBytes = Uint8Array.from(atob(pem), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey(
+    'pkcs8', keyBytes.buffer,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(signingInput));
+  return `${signingInput}.${b64url(sig)}`;
 }
 
 export async function ensureGToken() {
-  if (state.gToken) return true;
-  if (!state.gClientId) { toast('❌ Bitte Google Client-ID in Einstellungen eingeben'); return false; }
+  if (state.gToken && state.gTokenExpiry > Date.now() + 60_000) return true;
+  if (!state.serviceAccountJson) {
+    toast('❌ Bitte Service Account JSON in Einstellungen laden');
+    return false;
+  }
   try {
-    await loadGIS();
-    return new Promise(resolve => {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: state.gClientId,
-        scope: 'https://www.googleapis.com/auth/drive.file',
-        callback: resp => {
-          if (resp.error) { toast('❌ Google-Anmeldung fehlgeschlagen'); resolve(false); return; }
-          state.gToken = resp.access_token;
-          toast('✅ Mit Google Drive verbunden');
-          resolve(true);
-        },
-      });
-      client.requestAccessToken();
+    const jwt = await createJWT(state.serviceAccountJson);
+    const resp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
     });
-  } catch(e) { toast('❌ ' + e.message); return false; }
+    const data = await resp.json();
+    if (!data.access_token) throw new Error(data.error_description || 'Token-Fehler');
+    state.gToken = data.access_token;
+    state.gTokenExpiry = Date.now() + (data.expires_in ?? 3600) * 1000;
+    return true;
+  } catch(e) {
+    toast('❌ Drive-Auth: ' + e.message);
+    return false;
+  }
 }
 
 async function driveGet(path) {
   const r = await fetch('https://www.googleapis.com/' + path,
     { headers: { Authorization: 'Bearer ' + state.gToken } });
-  if (r.status === 401) { state.gToken = null; throw new Error('Token abgelaufen, bitte neu anmelden'); }
+  if (r.status === 401) {
+    state.gToken = null;
+    state.gTokenExpiry = 0;
+    throw new Error('Token abgelaufen');
+  }
   return r.json();
 }
 
@@ -53,22 +78,18 @@ async function getOrCreateFolder(name, parentId) {
     headers: { Authorization: 'Bearer ' + state.gToken, 'Content-Type': 'application/json' },
     body: JSON.stringify(meta),
   });
-  const f = await r.json();
-  return f.id;
+  return (await r.json()).id;
 }
 
 async function ensureRootFolder() {
   if (state.rootFolderId) return state.rootFolderId;
-  state.rootFolderId = await getOrCreateFolder('UmzugsBox', null);
-  await saveSettings();
-  return state.rootFolderId;
+  throw new Error('Bitte Drive-Ordner-ID in den Einstellungen eingeben');
 }
 
 export async function getBoxFolder(box) {
   if (box.driveFolderId) return box.driveFolderId;
   const root = await ensureRootFolder();
-  const name = `${box.name} [${box.id}]`;
-  const id = await getOrCreateFolder(name, root);
+  const id = await getOrCreateFolder(`${box.name} [${box.id}]`, root);
   box.driveFolderId = id;
   await saveBoxes();
   return id;
@@ -83,8 +104,7 @@ export async function uploadToDrive(dataUrl, filename, folderId) {
   const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
     { method: 'POST', headers: { Authorization: 'Bearer ' + state.gToken }, body: form });
   if (!r.ok) throw new Error('Upload fehlgeschlagen: ' + r.status);
-  const d = await r.json();
-  return d.id;
+  return (await r.json()).id;
 }
 
 export async function downloadFromDrive(fileId) {

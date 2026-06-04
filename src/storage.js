@@ -44,7 +44,7 @@ export async function loadData() {
       state.currentUser = s.user || 'Nutzer 1';
       state.scriptUrl = s.scriptUrl || '';
       state.lastSync = s.lastSync || null;
-      state.gClientId = s.gClientId || '';
+      state.serviceAccountJson = s.serviceAccountJson || null;
       state.rootFolderId = s.rootFolderId || null;
       state.customRooms = Array.isArray(s.customRooms) ? s.customRooms : null;
       state.disabledColorIds = Array.isArray(s.disabledColorIds) ? s.disabledColorIds : [];
@@ -69,7 +69,7 @@ export async function saveSettings() {
       user: state.currentUser,
       scriptUrl: state.scriptUrl,
       lastSync: state.lastSync,
-      gClientId: state.gClientId,
+      serviceAccountJson: state.serviceAccountJson,
       rootFolderId: state.rootFolderId,
       customRooms: state.customRooms,
       disabledColorIds: state.disabledColorIds,

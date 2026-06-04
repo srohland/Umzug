@@ -1,6 +1,7 @@
 import { state } from '../state.js';
 import { esc, activeBoxes, getRooms, sanitizeBox, toast } from '../helpers.js';
 import { COLORS, ROOMS } from '../constants.js';
+import { ensureGToken } from '../drive.js';
 import { saveSettings, saveBoxes } from '../storage.js';
 import { driveSync } from '../sync.js';
 import { ensureGToken } from '../drive.js';
@@ -77,19 +78,30 @@ export function renderSettings() {
 
     <div class="sec">📸 Google Drive (Fotos)</div>
     <div class="card">
+      <div class="fg" style="margin-bottom:12px">
+        <label>Service Account JSON</label>
+        ${state.serviceAccountJson
+          ? `<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg);border-radius:8px;border:1.5px solid var(--border)">
+               <span style="font-size:18px">✅</span>
+               <span style="font-size:12px;color:var(--ink2);font-weight:600;word-break:break-all">${esc(state.serviceAccountJson.client_email)}</span>
+               <button class="btn btn-d" style="padding:4px 10px;font-size:12px;margin-left:auto;flex-shrink:0" onclick="clearServiceAccount()">✕</button>
+             </div>`
+          : `<label class="btn btn-s btn-w" style="cursor:pointer;margin-top:4px">
+               📂 JSON-Datei laden
+               <input type="file" accept=".json,application/json" onchange="loadServiceAccountFile(this)" style="display:none">
+             </label>`}
+      </div>
       <div class="fg">
-        <label>Google OAuth Client-ID</label>
-        <input type="text" id="gcid" value="${esc(state.gClientId)}" placeholder="….apps.googleusercontent.com"
-          oninput="state_setGClientId(this.value)" style="font-size:13px">
+        <label>Freigegebene Ordner-ID</label>
+        <input type="text" value="${esc(state.rootFolderId || '')}" placeholder="1ABC…xyz"
+          style="font-size:13px;font-family:monospace"
+          onchange="saveRootFolderId(this.value.trim())">
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:10px">
-        <button class="btn btn-s" style="flex:1" onclick="saveGClientId()">💾 Speichern</button>
-        <button class="btn btn-p" style="flex:1" onclick="connectGDrive()">${state.gToken ? '✅ Verbunden' : '🔑 Anmelden'}</button>
-      </div>
-      <p style="font-size:12px;color:var(--muted);font-weight:500;line-height:1.6">
-        Fotos werden automatisch nach <code style="background:var(--bg);padding:1px 5px;border-radius:4px">UmzugsBox/{Karton}/{item}.jpg</code> hochgeladen.<br>
-        Andere Nutzer sehen das Thumbnail sofort nach dem Sync. Vollbild wird bei Bedarf aus Drive geladen und lokal gecacht.<br><br>
-        Setup: <a href="https://console.cloud.google.com" target="_blank" style="color:var(--primary)">Google Cloud Console</a> → Projekt → Drive API aktivieren → OAuth Client-ID erstellen (Webanwendung) → Herkunft <code style="background:var(--bg);padding:1px 5px;border-radius:4px">${location.origin}</code> hinzufügen.
+      ${state.serviceAccountJson && state.rootFolderId
+        ? `<button class="btn btn-p btn-w" onclick="testDriveConnection()">🔗 Verbindung testen</button>`
+        : ''}
+      <p style="font-size:12px;color:var(--muted);font-weight:500;line-height:1.6;margin-top:12px">
+        Fotos werden automatisch in den freigegebenen Drive-Ordner hochgeladen und sind für alle Nutzer sichtbar.
       </p>
     </div>
 
@@ -158,11 +170,54 @@ export function renderSettings() {
 }
 
 export function setCurrentUser(v) { const t = v.trim(); if (t) { state.currentUser = t; saveSettings(); } }
-export function state_setGClientId(v) { state.gClientId = v; }
 export function state_setScriptUrl(v) { state.scriptUrl = v; }
-export async function saveGClientId() { await saveSettings(); toast('✅ Gespeichert'); }
 export async function saveScriptUrl() { await saveSettings(); toast('✅ URL gespeichert'); window.render?.(); }
-export async function connectGDrive() { if (await ensureGToken()) window.render?.(); }
+
+export async function loadServiceAccountFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const json = JSON.parse(text);
+    if (!json.client_email || !json.private_key) throw new Error('Ungültige Service Account JSON');
+    state.serviceAccountJson = json;
+    state.gToken = null;
+    state.gTokenExpiry = 0;
+    await saveSettings();
+    toast('✅ Service Account geladen');
+    window.render?.();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+export async function clearServiceAccount() {
+  state.serviceAccountJson = null;
+  state.gToken = null;
+  state.gTokenExpiry = 0;
+  await saveSettings();
+  window.render?.();
+}
+
+export async function saveRootFolderId(v) {
+  state.rootFolderId = v || null;
+  await saveSettings();
+  toast('✅ Ordner-ID gespeichert');
+  window.render?.();
+}
+
+export async function testDriveConnection() {
+  toast('⏳ Verbinde…', 5000);
+  const ok = await ensureGToken();
+  if (!ok) return;
+  try {
+    const r = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${state.rootFolderId}?fields=name`,
+      { headers: { Authorization: 'Bearer ' + state.gToken } }
+    );
+    const d = await r.json();
+    if (d.name) toast(`✅ Verbunden mit Ordner „${d.name}"`);
+    else throw new Error(d.error?.message || 'Ordner nicht gefunden');
+  } catch(e) { toast('❌ ' + e.message); }
+}
 
 export function exportJSON() {
   const data = JSON.stringify({ version: 2, exported: new Date().toISOString(), exportedBy: state.currentUser, boxes: activeBoxes() }, null, 2);
